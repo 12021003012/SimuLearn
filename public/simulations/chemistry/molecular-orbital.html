@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Molecular Orbital Theory</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#panel { position: absolute; top: 10px; left: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 200px; z-index: 10; }
+#panel h3 { font-size: 13px; margin-bottom: 8px; color: #e2e8f0; }
+.molecule-btn { display: block; width: 100%; padding: 8px; margin-bottom: 4px; background: #334155; border: 1px solid #475569; color: #e2e8f0; border-radius: 6px; cursor: pointer; font-size: 11px; text-align: left; }
+.molecule-btn.active { background: #0ea5e9; border-color: #0ea5e9; }
+.molecule-btn:hover { background: #475569; }
+#mol-info { margin-top: 10px; font-size: 10px; color: #94a3b8; line-height: 1.5; }
+#mol-info strong { color: #38bdf8; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h3>Molecular Orbitals</h3>
+  <button class="molecule-btn active" onclick="selectMol('H2')">H₂ (Hydrogen)</button>
+  <button class="molecule-btn" onclick="selectMol('He2')">He₂ (Helium - unstable)</button>
+  <button class="molecule-btn" onclick="selectMol('O2')">O₂ (Oxygen)</button>
+  <button class="molecule-btn" onclick="selectMol('N2')">N₂ (Nitrogen)</button>
+  <button class="molecule-btn" onclick="selectMol('F2')">F₂ (Fluorine)</button>
+  <div id="mol-info">
+    <strong>Bond Order:</strong> <span id="bond-order">1</span><br>
+    <strong>Magnetic:</strong> <span id="magnetic">Diamagnetic</span><br>
+    <strong>Stability:</strong> <span id="stability">Stable</span>
+  </div>
+</div>
+<script>
+const molecules = {
+  H2: { electrons: 2, bondOrder: 1, magnetic: 'Diamagnetic', stable: true },
+  He2: { electrons: 4, bondOrder: 0, magnetic: 'Diamagnetic', stable: false },
+  O2: { electrons: 16, bondOrder: 2, magnetic: 'Paramagnetic', stable: true },
+  N2: { electrons: 14, bondOrder: 3, magnetic: 'Diamagnetic', stable: true },
+  F2: { electrons: 18, bondOrder: 1, magnetic: 'Diamagnetic', stable: true },
+};
+
+// MO energy level configs (simplified for 2nd period)
+// Format: { label, energy, capacity, bonding }
+const moLevels = {
+  H2: [
+    { label: 'σ1s', energy: 1, capacity: 2, bonding: true, filled: 2 },
+    { label: 'σ*1s', energy: 2, capacity: 2, bonding: false, filled: 0 },
+  ],
+  He2: [
+    { label: 'σ1s', energy: 1, capacity: 2, bonding: true, filled: 2 },
+    { label: 'σ*1s', energy: 2, capacity: 2, bonding: false, filled: 2 },
+  ],
+  N2: [
+    { label: 'σ1s', energy: 1, capacity: 2, bonding: true, filled: 2 },
+    { label: 'σ*1s', energy: 2, capacity: 2, bonding: false, filled: 2 },
+    { label: 'σ2s', energy: 3, capacity: 2, bonding: true, filled: 2 },
+    { label: 'σ*2s', energy: 4, capacity: 2, bonding: false, filled: 2 },
+    { label: 'π2p', energy: 5, capacity: 4, bonding: true, filled: 4 },
+    { label: 'σ2p', energy: 6, capacity: 2, bonding: true, filled: 2 },
+    { label: 'π*2p', energy: 7, capacity: 4, bonding: false, filled: 0 },
+    { label: 'σ*2p', energy: 8, capacity: 2, bonding: false, filled: 0 },
+  ],
+  O2: [
+    { label: 'σ1s', energy: 1, capacity: 2, bonding: true, filled: 2 },
+    { label: 'σ*1s', energy: 2, capacity: 2, bonding: false, filled: 2 },
+    { label: 'σ2s', energy: 3, capacity: 2, bonding: true, filled: 2 },
+    { label: 'σ*2s', energy: 4, capacity: 2, bonding: false, filled: 2 },
+    { label: 'σ2p', energy: 5, capacity: 2, bonding: true, filled: 2 },
+    { label: 'π2p', energy: 6, capacity: 4, bonding: true, filled: 4 },
+    { label: 'π*2p', energy: 7, capacity: 4, bonding: false, filled: 2 },
+    { label: 'σ*2p', energy: 8, capacity: 2, bonding: false, filled: 0 },
+  ],
+  F2: [
+    { label: 'σ1s', energy: 1, capacity: 2, bonding: true, filled: 2 },
+    { label: 'σ*1s', energy: 2, capacity: 2, bonding: false, filled: 2 },
+    { label: 'σ2s', energy: 3, capacity: 2, bonding: true, filled: 2 },
+    { label: 'σ*2s', energy: 4, capacity: 2, bonding: false, filled: 2 },
+    { label: 'σ2p', energy: 5, capacity: 2, bonding: true, filled: 2 },
+    { label: 'π2p', energy: 6, capacity: 4, bonding: true, filled: 4 },
+    { label: 'π*2p', energy: 7, capacity: 4, bonding: false, filled: 4 },
+    { label: 'σ*2p', energy: 8, capacity: 2, bonding: false, filled: 0 },
+  ],
+};
+
+let currentMol = 'H2';
+let animTime = 0;
+
+function selectMol(mol) {
+  currentMol = mol;
+  document.querySelectorAll('.molecule-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  let info = molecules[mol];
+  document.getElementById('bond-order').textContent = info.bondOrder;
+  document.getElementById('magnetic').textContent = info.magnetic;
+  document.getElementById('stability').textContent = info.stable ? 'Stable' : 'Unstable (doesn\'t exist)';
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  animTime += 0.02;
+  
+  let levels = moLevels[currentMol];
+  let numLevels = levels.length;
+  let diagramX = width * 0.5;
+  let diagramTop = 60;
+  let diagramBottom = height - 60;
+  let levelSpacing = (diagramBottom - diagramTop) / (numLevels + 1);
+  
+  // Energy axis
+  stroke(71, 85, 105);
+  strokeWeight(1);
+  line(diagramX - 200, diagramTop, diagramX - 200, diagramBottom);
+  
+  // Arrow
+  fill(71, 85, 105);
+  noStroke();
+  triangle(diagramX - 200, diagramTop, diagramX - 205, diagramTop + 10, diagramX - 195, diagramTop + 10);
+  
+  textSize(10);
+  fill(100, 116, 139);
+  textAlign(CENTER);
+  push();
+  translate(diagramX - 220, (diagramTop + diagramBottom) / 2);
+  rotate(-HALF_PI);
+  text('Energy →', 0, 0);
+  pop();
+  
+  // Draw MO levels
+  for (let i = 0; i < numLevels; i++) {
+    let level = levels[i];
+    let y = diagramBottom - (i + 1) * levelSpacing;
+    let x = diagramX;
+    let lineW = level.capacity === 4 ? 120 : 80;
+    
+    // Level line
+    let col = level.bonding ? color(74, 222, 128) : color(239, 68, 68);
+    stroke(col);
+    strokeWeight(2);
+    
+    if (level.capacity === 4) {
+      // Two degenerate levels
+      line(x - 60, y, x - 10, y);
+      line(x + 10, y, x + 60, y);
+      
+      // Fill electrons
+      drawElectrons(x - 35, y, Math.min(level.filled, 2));
+      drawElectrons(x + 35, y, Math.max(level.filled - 2, 0));
+    } else {
+      line(x - 40, y, x + 40, y);
+      drawElectrons(x, y, level.filled);
+    }
+    
+    // Label
+    noStroke();
+    fill(level.bonding ? color(74, 222, 128, 200) : color(239, 68, 68, 200));
+    textSize(10);
+    textAlign(LEFT);
+    text(level.label, x + 80, y + 4);
+    
+    // Bonding/antibonding label
+    fill(100, 116, 139);
+    textSize(8);
+    text(level.bonding ? '(bonding)' : '(antibonding)', x + 80, y + 16);
+  }
+  
+  // Draw atomic orbital labels
+  noStroke();
+  fill(148, 163, 184);
+  textSize(12);
+  textAlign(CENTER);
+  text('Atom A', diagramX - 160, diagramBottom + 30);
+  text('Molecular Orbitals', diagramX, diagramBottom + 30);
+  text('Atom B', diagramX + 160, diagramBottom + 30);
+  
+  // Title
+  fill(228, 228, 231);
+  textSize(14);
+  textAlign(CENTER);
+  text(currentMol.replace('2', '₂') + ' - Molecular Orbital Diagram', diagramX, 30);
+  
+  // Bond order formula
+  fill(148, 163, 184);
+  textSize(11);
+  textAlign(RIGHT);
+  let info = molecules[currentMol];
+  text(`Bond Order = (bonding e⁻ - antibonding e⁻) / 2 = ${info.bondOrder}`, width - 20, height - 20);
+  
+  // Orbital shape visualization (right side)
+  let vizX = width - 150;
+  let vizY = height * 0.35;
+  
+  fill(100, 116, 139);
+  textSize(10);
+  textAlign(CENTER);
+  text('Orbital Shapes', vizX, vizY - 80);
+  
+  // Sigma bonding
+  drawOrbitalShape(vizX, vizY - 40, 'sigma', true);
+  fill(74, 222, 128, 150);
+  noStroke();
+  textSize(8);
+  text('σ (bonding)', vizX, vizY - 5);
+  
+  // Sigma antibonding
+  drawOrbitalShape(vizX, vizY + 40, 'sigma', false);
+  fill(239, 68, 68, 150);
+  noStroke();
+  textSize(8);
+  text('σ* (antibonding)', vizX, vizY + 75);
+  
+  // Pi bonding
+  drawOrbitalShape(vizX, vizY + 110, 'pi', true);
+  fill(74, 222, 128, 150);
+  noStroke();
+  textSize(8);
+  text('π (bonding)', vizX, vizY + 145);
+}
+
+function drawElectrons(x, y, count) {
+  noStroke();
+  let arrowH = 15;
+  
+  if (count >= 1) {
+    // Up arrow
+    fill(56, 189, 248);
+    drawArrow(x - 8, y - 5, true);
+  }
+  if (count >= 2) {
+    // Down arrow
+    fill(251, 146, 60);
+    drawArrow(x + 8, y - 5, false);
+  }
+}
+
+function drawArrow(x, y, up) {
+  push();
+  translate(x, y);
+  if (!up) rotate(PI);
+  
+  // Arrow body
+  rect(-2, -6, 4, 12);
+  // Arrow head
+  triangle(-5, -6, 5, -6, 0, -12);
+  pop();
+}
+
+function drawOrbitalShape(x, y, type, bonding) {
+  noFill();
+  strokeWeight(1.5);
+  
+  if (type === 'sigma') {
+    if (bonding) {
+      // Overlapping spheres
+      stroke(74, 222, 128, 150);
+      ellipse(x - 15, y, 35, 25);
+      ellipse(x + 15, y, 35, 25);
+      // Electron density in middle
+      fill(74, 222, 128, 50);
+      noStroke();
+      ellipse(x, y, 20, 18);
+    } else {
+      // Separated with node
+      stroke(239, 68, 68, 150);
+      ellipse(x - 20, y, 30, 22);
+      ellipse(x + 20, y, 30, 22);
+      // Node line
+      stroke(255, 255, 255, 100);
+      strokeWeight(1);
+      drawingContext.setLineDash([3, 3]);
+      line(x, y - 15, x, y + 15);
+      drawingContext.setLineDash([]);
+    }
+  } else if (type === 'pi') {
+    if (bonding) {
+      stroke(74, 222, 128, 150);
+      // Two lobes above and below
+      ellipse(x, y - 10, 50, 12);
+      ellipse(x, y + 10, 50, 12);
+    }
+  }
+}
+</script>
+</body>
+</html>

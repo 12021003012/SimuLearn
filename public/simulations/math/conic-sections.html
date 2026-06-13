@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Interactive Conic Sections</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#ui { position: absolute; top: 10px; left: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 210px; z-index: 10; }
+#ui h3 { font-size: 13px; margin-bottom: 8px; color: #e2e8f0; }
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.tabs button { flex: 1; padding: 6px 8px; background: #334155; border: none; color: #94a3b8; border-radius: 6px; cursor: pointer; font-size: 10px; }
+.tabs button.active { background: #0ea5e9; color: white; }
+.ctrl { margin-bottom: 10px; }
+.ctrl label { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-bottom: 3px; }
+.ctrl label span { color: #38bdf8; font-weight: bold; }
+input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; background: #334155; border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+#equation { margin-top: 10px; padding: 8px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; font-family: monospace; font-size: 11px; color: #4ade80; text-align: center; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h3>Conic Sections</h3>
+  <div class="tabs">
+    <button id="btn-ellipse" class="active" onclick="setType('ellipse')">Ellipse</button>
+    <button id="btn-parabola" onclick="setType('parabola')">Parabola</button>
+    <button id="btn-hyperbola" onclick="setType('hyperbola')">Hyperbola</button>
+  </div>
+  <div class="ctrl">
+    <label>Parameter a <span id="a-val">3.0</span></label>
+    <input type="range" id="a-slider" min="0.5" max="6" value="3" step="0.1">
+  </div>
+  <div class="ctrl">
+    <label>Parameter b <span id="b-val">2.0</span></label>
+    <input type="range" id="b-slider" min="0.5" max="6" value="2" step="0.1">
+  </div>
+  <div class="ctrl">
+    <label>Eccentricity <span id="e-val">0.74</span></label>
+  </div>
+  <div id="equation">x²/9 + y²/4 = 1</div>
+  <p style="font-size:9px; color:#64748b; margin-top:8px;">
+    Real-world: Planetary orbits (ellipse), satellite dishes (parabola), cooling towers (hyperbola)
+  </p>
+</div>
+<script>
+let conicType = 'ellipse';
+let a = 3, b = 2;
+
+document.getElementById('a-slider').addEventListener('input', function() { a = parseFloat(this.value); document.getElementById('a-val').textContent = a.toFixed(1); updateEquation(); });
+document.getElementById('b-slider').addEventListener('input', function() { b = parseFloat(this.value); document.getElementById('b-val').textContent = b.toFixed(1); updateEquation(); });
+
+function setType(type) {
+  conicType = type;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + type).classList.add('active');
+  updateEquation();
+}
+
+function updateEquation() {
+  let eq = '';
+  let e = 0;
+  switch(conicType) {
+    case 'ellipse':
+      e = Math.sqrt(1 - (Math.min(a,b)/Math.max(a,b))**2);
+      eq = `x²/${(a*a).toFixed(1)} + y²/${(b*b).toFixed(1)} = 1`;
+      break;
+    case 'parabola':
+      eq = `y² = ${(4*a).toFixed(1)}x`;
+      e = 1;
+      break;
+    case 'hyperbola':
+      e = Math.sqrt(1 + (b/a)**2);
+      eq = `x²/${(a*a).toFixed(1)} - y²/${(b*b).toFixed(1)} = 1`;
+      break;
+  }
+  document.getElementById('equation').textContent = eq;
+  document.getElementById('e-val').textContent = e.toFixed(2);
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  updateEquation();
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  
+  let cx = width * 0.55;
+  let cy = height * 0.5;
+  let gridScale = 50; // pixels per unit
+  
+  // Draw grid
+  stroke(30, 41, 59);
+  strokeWeight(0.5);
+  for (let x = -20; x <= 20; x++) {
+    let px = cx + x * gridScale;
+    if (px > 220 && px < width) line(px, 0, px, height);
+  }
+  for (let y = -20; y <= 20; y++) {
+    let py = cy + y * gridScale;
+    line(220, py, width, py);
+  }
+  
+  // Axes
+  stroke(71, 85, 105);
+  strokeWeight(1.5);
+  line(220, cy, width, cy);
+  line(cx, 0, cx, height);
+  
+  // Axis labels
+  noStroke();
+  fill(100, 116, 139);
+  textSize(10);
+  textAlign(CENTER);
+  for (let i = -6; i <= 6; i++) {
+    if (i !== 0) {
+      text(i, cx + i * gridScale, cy + 15);
+      text(i, cx - 18, cy - i * gridScale + 4);
+    }
+  }
+  
+  // Draw conic section
+  noFill();
+  strokeWeight(2.5);
+  
+  switch(conicType) {
+    case 'ellipse': drawEllipse(cx, cy, gridScale); break;
+    case 'parabola': drawParabola(cx, cy, gridScale); break;
+    case 'hyperbola': drawHyperbola(cx, cy, gridScale); break;
+  }
+}
+
+function drawEllipse(cx, cy, s) {
+  // Main curve
+  stroke(56, 189, 248);
+  beginShape();
+  for (let t = 0; t <= TWO_PI; t += 0.02) {
+    vertex(cx + a * cos(t) * s, cy - b * sin(t) * s);
+  }
+  endShape(CLOSE);
+  
+  // Foci
+  let c_val = sqrt(abs(a*a - b*b));
+  let f1x, f1y, f2x, f2y;
+  if (a >= b) {
+    f1x = cx - c_val * s; f1y = cy;
+    f2x = cx + c_val * s; f2y = cy;
+  } else {
+    f1x = cx; f1y = cy - c_val * s;
+    f2x = cx; f2y = cy + c_val * s;
+  }
+  
+  fill(251, 146, 60);
+  noStroke();
+  ellipse(f1x, f1y, 10, 10);
+  ellipse(f2x, f2y, 10, 10);
+  
+  // Labels
+  textSize(10);
+  fill(251, 146, 60);
+  textAlign(CENTER);
+  text('F₁', f1x, f1y + 18);
+  text('F₂', f2x, f2y + 18);
+  
+  // Semi-axes
+  stroke(74, 222, 128, 150);
+  strokeWeight(1);
+  drawingContext.setLineDash([5, 5]);
+  line(cx, cy, cx + a * s, cy);
+  line(cx, cy, cx, cy - b * s);
+  drawingContext.setLineDash([]);
+  
+  fill(74, 222, 128);
+  noStroke();
+  textSize(9);
+  text('a=' + a.toFixed(1), cx + a * s * 0.5, cy + 15);
+  text('b=' + b.toFixed(1), cx + 12, cy - b * s * 0.5);
+  
+  // Center
+  fill(255);
+  noStroke();
+  ellipse(cx, cy, 6, 6);
+}
+
+function drawParabola(cx, cy, s) {
+  stroke(74, 222, 128);
+  noFill();
+  beginShape();
+  for (let t = -8; t <= 8; t += 0.05) {
+    let x = (t * t) / (4 * a);
+    let y = t;
+    vertex(cx + x * s, cy - y * s);
+  }
+  endShape();
+  
+  // Focus
+  fill(251, 146, 60);
+  noStroke();
+  ellipse(cx + a * s, cy, 10, 10);
+  textSize(10);
+  text('F', cx + a * s, cy + 18);
+  
+  // Directrix
+  stroke(239, 68, 68, 150);
+  strokeWeight(1);
+  drawingContext.setLineDash([5, 5]);
+  line(cx - a * s, 0, cx - a * s, height);
+  drawingContext.setLineDash([]);
+  
+  fill(239, 68, 68, 150);
+  noStroke();
+  textSize(9);
+  text('directrix', cx - a * s, 20);
+  
+  // Vertex
+  fill(255);
+  ellipse(cx, cy, 6, 6);
+}
+
+function drawHyperbola(cx, cy, s) {
+  stroke(168, 85, 247);
+  noFill();
+  strokeWeight(2.5);
+  
+  // Right branch
+  beginShape();
+  for (let t = -2.5; t <= 2.5; t += 0.02) {
+    let x = a * cosh(t);
+    let y = b * sinh(t);
+    vertex(cx + x * s, cy - y * s);
+  }
+  endShape();
+  
+  // Left branch
+  beginShape();
+  for (let t = -2.5; t <= 2.5; t += 0.02) {
+    let x = -a * cosh(t);
+    let y = b * sinh(t);
+    vertex(cx + x * s, cy - y * s);
+  }
+  endShape();
+  
+  // Asymptotes
+  stroke(100, 116, 139, 100);
+  strokeWeight(1);
+  drawingContext.setLineDash([5, 5]);
+  let asymSlope = b / a;
+  line(cx - 300, cy + 300 * asymSlope, cx + 300, cy - 300 * asymSlope);
+  line(cx - 300, cy - 300 * asymSlope, cx + 300, cy + 300 * asymSlope);
+  drawingContext.setLineDash([]);
+  
+  // Foci
+  let c_val = sqrt(a*a + b*b);
+  fill(251, 146, 60);
+  noStroke();
+  ellipse(cx - c_val * s, cy, 10, 10);
+  ellipse(cx + c_val * s, cy, 10, 10);
+  textSize(10);
+  text('F₁', cx - c_val * s, cy + 18);
+  text('F₂', cx + c_val * s, cy + 18);
+  
+  // Vertices
+  fill(255);
+  ellipse(cx - a * s, cy, 6, 6);
+  ellipse(cx + a * s, cy, 6, 6);
+}
+
+function cosh(x) { return (exp(x) + exp(-x)) / 2; }
+function sinh(x) { return (exp(x) - exp(-x)) / 2; }
+</script>
+</body>
+</html>

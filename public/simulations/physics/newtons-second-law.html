@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Newton's Second Law — F = ma Interactive Lab</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+  background: #0f172a; 
+  color: #f8fafc; 
+  font-family: system-ui, -apple-system, sans-serif; 
+  overflow: hidden;
+  display: flex;
+  height: 100vh;
+}
+
+#sim-container {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+
+#controls-panel {
+  width: 320px;
+  background: #1e293b;
+  border-left: 1px solid #334155;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-subtitle {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.equation-box {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.equation {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.eq-f { color: #f87171; }
+.eq-m { color: #fb923c; }
+.eq-a { color: #38bdf8; }
+.eq-equals { color: #94a3b8; }
+
+.control-group {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.control-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.control-label span:first-child {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.control-value {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.val-force { color: #f87171; }
+.val-mass { color: #fb923c; }
+.val-friction { color: #a78bfa; }
+
+input[type="range"] {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  background: #334155;
+  border-radius: 3px;
+  outline: none;
+}
+
+input[type="range"].slider-force::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #f87171;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(248,113,113,0.4);
+}
+
+input[type="range"].slider-mass::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fb923c;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(251,146,60,0.4);
+}
+
+input[type="range"].slider-friction::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #a78bfa;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(167,139,250,0.4);
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.btn-play {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  color: white;
+}
+.btn-play:hover { box-shadow: 0 4px 15px rgba(56,189,248,0.3); transform: translateY(-1px); }
+
+.btn-reset {
+  background: #334155;
+  color: #94a3b8;
+}
+.btn-reset:hover { background: #475569; color: white; }
+
+.btn-speed {
+  background: #334155;
+  color: #94a3b8;
+  padding: 8px;
+  font-size: 11px;
+}
+.btn-speed.active { background: #4ade80; color: #0f172a; }
+
+.live-data {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.live-data h3 {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.data-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid #1e293b;
+}
+
+.data-row:last-child { border-bottom: none; }
+
+.data-label {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.data-value {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.energy-bars {
+  margin-top: 10px;
+}
+
+.energy-bar {
+  height: 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+  background: #334155;
+  overflow: hidden;
+}
+
+.energy-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.1s;
+}
+
+.hint-box {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.hint-box strong { color: #38bdf8; }
+
+.graph-container {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 10px;
+  height: 120px;
+  position: relative;
+  overflow: hidden;
+}
+
+.graph-title {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+</style>
+</head>
+<body>
+<div id="sim-container"></div>
+<div id="controls-panel">
+  <div>
+    <div class="panel-title">⚡ Newton's Second Law Lab</div>
+    <div class="panel-subtitle">Explore F = ma with real-time physics</div>
+  </div>
+
+  <div class="equation-box">
+    <div class="equation">
+      <span class="eq-f">F</span><sub style="color:#64748b;font-size:14px">net</sub>
+      <span class="eq-equals"> = </span>
+      <span class="eq-m">m</span>
+      <span class="eq-equals"> × </span>
+      <span class="eq-a">a</span>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Applied Force</span>
+      <span class="control-value val-force" id="force-val">50 N</span>
+    </div>
+    <input type="range" class="slider-force" id="force-slider" min="0" max="200" value="50" step="1">
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Mass of Block</span>
+      <span class="control-value val-mass" id="mass-val">5.0 kg</span>
+    </div>
+    <input type="range" class="slider-mass" id="mass-slider" min="0.5" max="50" value="5" step="0.5">
+  </div>
+
+  <div class="control-group">
+    <div class="control-label">
+      <span>Friction Coefficient (μ)</span>
+      <span class="control-value val-friction" id="friction-val">0.20</span>
+    </div>
+    <input type="range" class="slider-friction" id="friction-slider" min="0" max="1" value="0.2" step="0.01">
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-play" id="play-btn">▶ Play</button>
+    <button class="btn btn-reset" id="reset-btn">↺ Reset</button>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-speed" id="speed-05">0.5×</button>
+    <button class="btn btn-speed active" id="speed-1">1×</button>
+    <button class="btn btn-speed" id="speed-2">2×</button>
+  </div>
+
+  <div class="live-data">
+    <h3>📊 Live Data</h3>
+    <div class="data-row">
+      <span class="data-label">Net Force</span>
+      <span class="data-value" id="net-force-val" style="color:#f87171">— N</span>
+    </div>
+    <div class="data-row">
+      <span class="data-label">Acceleration</span>
+      <span class="data-value" id="accel-val" style="color:#38bdf8">— m/s²</span>
+    </div>
+    <div class="data-row">
+      <span class="data-label">Velocity</span>
+      <span class="data-value" id="vel-val" style="color:#4ade80">— m/s</span>
+    </div>
+    <div class="data-row">
+      <span class="data-label">Displacement</span>
+      <span class="data-value" id="disp-val" style="color:#fbbf24">— m</span>
+    </div>
+    <div class="data-row">
+      <span class="data-label">Time</span>
+      <span class="data-value" id="time-val" style="color:#94a3b8">0.00 s</span>
+    </div>
+    <div class="energy-bars">
+      <div class="data-row">
+        <span class="data-label">Kinetic Energy</span>
+        <span class="data-value" id="ke-val" style="color:#38bdf8">0 J</span>
+      </div>
+      <div class="energy-bar"><div class="energy-fill" id="ke-bar" style="background:#38bdf8;width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="graph-container">
+    <div class="graph-title">Velocity vs Time</div>
+    <canvas id="graph-canvas" width="280" height="90"></canvas>
+  </div>
+
+  <div class="hint-box">
+    💡 <strong>Try this:</strong> Set force to 0 and increase friction — watch the block decelerate! Or max out force with minimal mass to see extreme acceleration.
+  </div>
+</div>
+
+<script>
+// === STATE ===
+let appliedForce = 50;
+let mass = 5;
+let frictionCoeff = 0.2;
+let isPlaying = false;
+let speedMultiplier = 1;
+const g = 9.81;
+
+let block = { x: 100, vel: 0, accel: 0, displacement: 0 };
+let time = 0;
+let velHistory = [];
+const MAX_HISTORY = 150;
+
+// === DOM REFS ===
+const forceSlider = document.getElementById('force-slider');
+const massSlider = document.getElementById('mass-slider');
+const frictionSlider = document.getElementById('friction-slider');
+const playBtn = document.getElementById('play-btn');
+const resetBtn = document.getElementById('reset-btn');
+
+// === EVENT LISTENERS ===
+forceSlider.addEventListener('input', (e) => {
+  appliedForce = parseFloat(e.target.value);
+  document.getElementById('force-val').textContent = appliedForce + ' N';
+  updatePhysicsDisplay();
+});
+
+massSlider.addEventListener('input', (e) => {
+  mass = parseFloat(e.target.value);
+  document.getElementById('mass-val').textContent = mass.toFixed(1) + ' kg';
+  updatePhysicsDisplay();
+});
+
+frictionSlider.addEventListener('input', (e) => {
+  frictionCoeff = parseFloat(e.target.value);
+  document.getElementById('friction-val').textContent = frictionCoeff.toFixed(2);
+  updatePhysicsDisplay();
+});
+
+playBtn.addEventListener('click', () => {
+  isPlaying = !isPlaying;
+  playBtn.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+  playBtn.style.background = isPlaying 
+    ? 'linear-gradient(135deg, #f87171, #dc2626)' 
+    : 'linear-gradient(135deg, #38bdf8, #0ea5e9)';
+});
+
+resetBtn.addEventListener('click', () => {
+  block = { x: 100, vel: 0, accel: 0, displacement: 0 };
+  time = 0;
+  velHistory = [];
+  isPlaying = false;
+  playBtn.textContent = '▶ Play';
+  playBtn.style.background = 'linear-gradient(135deg, #38bdf8, #0ea5e9)';
+  updatePhysicsDisplay();
+});
+
+document.getElementById('speed-05').addEventListener('click', () => setSpeed(0.5));
+document.getElementById('speed-1').addEventListener('click', () => setSpeed(1));
+document.getElementById('speed-2').addEventListener('click', () => setSpeed(2));
+
+function setSpeed(s) {
+  speedMultiplier = s;
+  document.querySelectorAll('.btn-speed').forEach(b => b.classList.remove('active'));
+  document.getElementById('speed-' + (s === 0.5 ? '05' : s)).classList.add('active');
+}
+
+// === PHYSICS ===
+function calculatePhysics(dt) {
+  const frictionForce = frictionCoeff * mass * g;
+  let netForce = appliedForce;
+  
+  // Friction opposes motion (or prevents it if static)
+  if (block.vel > 0.01) {
+    netForce -= frictionForce;
+  } else if (block.vel < -0.01) {
+    netForce += frictionForce;
+  } else {
+    // Static friction: block doesn't move if force < static friction
+    if (Math.abs(appliedForce) <= frictionForce) {
+      netForce = 0;
+      block.vel = 0;
+    } else {
+      netForce = appliedForce - frictionForce * Math.sign(appliedForce);
+    }
+  }
+
+  block.accel = netForce / mass;
+  block.vel += block.accel * dt;
+  
+  // Stop if velocity goes negative (block doesn't go backward in this sim)
+  if (block.vel < 0) block.vel = 0;
+  
+  block.displacement += block.vel * dt;
+  block.x = 100 + (block.displacement * 3) % (windowWidth - 250);
+  
+  // Wrap around
+  if (block.x > windowWidth - 200) {
+    block.x = 100;
+  }
+  
+  time += dt;
+}
+
+function updatePhysicsDisplay() {
+  const frictionForce = frictionCoeff * mass * g;
+  let netForce = appliedForce - (block.vel > 0.01 ? frictionForce : (appliedForce > frictionForce ? frictionForce : appliedForce));
+  if (!isPlaying) {
+    netForce = Math.max(0, appliedForce - frictionForce);
+  }
+  
+  const accel = netForce / mass;
+  const ke = 0.5 * mass * block.vel * block.vel;
+  const maxKe = 0.5 * mass * 50 * 50; // reference max
+
+  document.getElementById('net-force-val').textContent = (isPlaying ? (block.accel * mass) : netForce).toFixed(1) + ' N';
+  document.getElementById('accel-val').textContent = (isPlaying ? block.accel : accel).toFixed(2) + ' m/s²';
+  document.getElementById('vel-val').textContent = block.vel.toFixed(2) + ' m/s';
+  document.getElementById('disp-val').textContent = block.displacement.toFixed(2) + ' m';
+  document.getElementById('time-val').textContent = time.toFixed(2) + ' s';
+  document.getElementById('ke-val').textContent = ke.toFixed(1) + ' J';
+  document.getElementById('ke-bar').style.width = Math.min(100, (ke / maxKe) * 100) + '%';
+}
+
+// === GRAPH ===
+function drawGraph() {
+  const canvas = document.getElementById('graph-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  if (velHistory.length < 2) return;
+  
+  const maxVel = Math.max(1, ...velHistory);
+  
+  // Grid lines
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i < 5; i++) {
+    const y = (i / 4) * canvas.height;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+  
+  // Velocity line
+  ctx.strokeStyle = '#4ade80';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < velHistory.length; i++) {
+    const x = (i / MAX_HISTORY) * canvas.width;
+    const y = canvas.height - (velHistory[i] / maxVel) * (canvas.height - 10);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  
+  // Current value label
+  ctx.fillStyle = '#4ade80';
+  ctx.font = '10px monospace';
+  ctx.fillText(block.vel.toFixed(1) + ' m/s', canvas.width - 55, 12);
+}
+
+// === P5.JS RENDERING ===
+function setup() {
+  const container = document.getElementById('sim-container');
+  const canvas = createCanvas(container.offsetWidth, container.offsetHeight);
+  canvas.parent('sim-container');
+  updatePhysicsDisplay();
+}
+
+function windowResized() {
+  const container = document.getElementById('sim-container');
+  resizeCanvas(container.offsetWidth, container.offsetHeight);
+}
+
+function draw() {
+  background(15, 23, 42);
+  
+  const dt = (1/60) * speedMultiplier;
+  if (isPlaying) {
+    calculatePhysics(dt);
+    velHistory.push(block.vel);
+    if (velHistory.length > MAX_HISTORY) velHistory.shift();
+    updatePhysicsDisplay();
+    drawGraph();
+  }
+  
+  const groundY = height - 100;
+  const blockSize = map(mass, 0.5, 50, 40, 120);
+  const blockX = block.x;
+  const blockY = groundY - blockSize;
+  
+  // === GRID ===
+  stroke(30, 41, 59);
+  strokeWeight(0.5);
+  for (let x = 0; x < width; x += 50) {
+    line(x, 0, x, groundY);
+  }
+  for (let y = 0; y < groundY; y += 50) {
+    line(0, y, width, y);
+  }
+  
+  // === GROUND ===
+  stroke(71, 85, 105);
+  strokeWeight(3);
+  line(0, groundY, width, groundY);
+  
+  // Ground hash marks
+  stroke(51, 65, 85);
+  strokeWeight(1);
+  for (let x = 0; x < width; x += 30) {
+    line(x, groundY, x - 10, groundY + 15);
+  }
+  
+  // === SCALE BAR ===
+  noStroke();
+  fill(100, 116, 139);
+  textSize(10);
+  textAlign(CENTER);
+  for (let x = 100; x < width - 100; x += 100) {
+    fill(71, 85, 105);
+    rect(x, groundY + 2, 1, 8);
+    fill(100, 116, 139);
+    text(((x - 100) / 3).toFixed(0) + 'm', x, groundY + 25);
+  }
+  
+  // === BLOCK ===
+  // Shadow
+  noStroke();
+  fill(0, 0, 0, 30);
+  rect(blockX + 5, blockY + 5, blockSize, blockSize, 6);
+  
+  // Block body with mass-based color intensity
+  const massRatio = map(mass, 0.5, 50, 0.3, 1);
+  fill(lerpColor(color(251, 191, 36), color(251, 146, 60), massRatio));
+  stroke(255, 255, 255, 30);
+  strokeWeight(1);
+  rect(blockX, blockY, blockSize, blockSize, 6);
+  
+  // Mass label on block
+  noStroke();
+  fill(15, 23, 42);
+  textAlign(CENTER, CENTER);
+  textSize(constrain(blockSize * 0.25, 10, 18));
+  textStyle(BOLD);
+  text(mass.toFixed(1) + ' kg', blockX + blockSize/2, blockY + blockSize/2);
+  textStyle(NORMAL);
+  
+  // === FORCE VECTORS ===
+  const forceScale = 0.8;
+  const arrowY = blockY + blockSize/2;
+  
+  // Applied Force (RED) →
+  if (appliedForce > 0) {
+    const fLen = appliedForce * forceScale;
+    drawArrow(blockX + blockSize, arrowY, blockX + blockSize + fLen, arrowY, color(248, 113, 113), 3);
+    fill(248, 113, 113);
+    noStroke();
+    textSize(11);
+    textAlign(LEFT);
+    text('F = ' + appliedForce + ' N', blockX + blockSize + fLen + 8, arrowY + 4);
+  }
+  
+  // Friction Force (PURPLE) ←
+  const frictionForce = frictionCoeff * mass * g;
+  if (frictionForce > 0 && (block.vel > 0.01 || appliedForce > frictionForce)) {
+    const fLen = frictionForce * forceScale;
+    drawArrow(blockX, arrowY, blockX - fLen, arrowY, color(167, 139, 250), 3);
+    fill(167, 139, 250);
+    noStroke();
+    textSize(11);
+    textAlign(RIGHT);
+    text('f = ' + frictionForce.toFixed(1) + ' N', blockX - fLen - 8, arrowY + 4);
+  }
+  
+  // Net Force (if playing, show as thick arrow at top)
+  if (isPlaying && Math.abs(block.accel * mass) > 0.1) {
+    const netF = block.accel * mass;
+    const nLen = Math.abs(netF) * forceScale;
+    const nColor = color(56, 189, 248);
+    const startX = blockX + blockSize/2;
+    const ny = blockY - 25;
+    drawArrow(startX, ny, startX + nLen * Math.sign(netF), ny, nColor, 4);
+    fill(56, 189, 248);
+    noStroke();
+    textSize(10);
+    textAlign(CENTER);
+    text('Fnet = ' + (netF).toFixed(1) + ' N', startX, ny - 12);
+  }
+  
+  // Weight and Normal (small, subtle)
+  const wLen = mass * g * 0.15;
+  // Weight down
+  drawArrow(blockX + blockSize/2, groundY, blockX + blockSize/2, groundY + wLen, color(100, 116, 139, 150), 2);
+  // Normal up
+  drawArrow(blockX + blockSize/2, blockY, blockX + blockSize/2, blockY - wLen, color(100, 116, 139, 150), 2);
+  
+  // === VELOCITY INDICATOR ===
+  if (block.vel > 0.01) {
+    const vLen = block.vel * 4;
+    drawArrow(blockX + blockSize/2, blockY - 40, blockX + blockSize/2 + vLen, blockY - 40, color(74, 222, 128), 2);
+    fill(74, 222, 128);
+    noStroke();
+    textSize(10);
+    textAlign(CENTER);
+    text('v = ' + block.vel.toFixed(1) + ' m/s', blockX + blockSize/2 + vLen/2, blockY - 50);
+  }
+  
+  // === ACCELERATION INDICATOR ===
+  if (isPlaying && Math.abs(block.accel) > 0.01) {
+    const aLen = block.accel * 8;
+    const ay = blockY - 60;
+    drawArrow(blockX + blockSize/2, ay, blockX + blockSize/2 + aLen, ay, color(56, 189, 248, 180), 2);
+    fill(56, 189, 248);
+    noStroke();
+    textSize(9);
+    textAlign(CENTER);
+    text('a = ' + block.accel.toFixed(2) + ' m/s²', blockX + blockSize/2 + aLen/2, ay - 10);
+  }
+  
+  // === INFO OVERLAY (top-left) ===
+  fill(30, 41, 59, 200);
+  noStroke();
+  rect(15, 15, 200, 50, 8);
+  fill(148, 163, 184);
+  textSize(11);
+  textAlign(LEFT);
+  text('Newton\'s Second Law: ΣF = ma', 25, 35);
+  fill(100, 116, 139);
+  textSize(10);
+  text('Adjust force, mass & friction to observe', 25, 52);
+}
+
+function drawArrow(x1, y1, x2, y2, col, weight) {
+  stroke(col);
+  strokeWeight(weight);
+  line(x1, y1, x2, y2);
+  
+  // Arrowhead
+  const angle = atan2(y2 - y1, x2 - x1);
+  const headLen = 8 + weight;
+  noStroke();
+  fill(col);
+  push();
+  translate(x2, y2);
+  rotate(angle);
+  triangle(0, 0, -headLen, -headLen/2.5, -headLen, headLen/2.5);
+  pop();
+}
+</script>
+</body>
+</html>

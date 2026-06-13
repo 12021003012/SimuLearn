@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Dijkstra's Shortest Path Algorithm</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#panel { position: absolute; top: 10px; left: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 220px; z-index: 10; }
+#panel h3 { font-size: 13px; margin-bottom: 8px; color: #e2e8f0; }
+.btn-row { display: flex; gap: 4px; margin-bottom: 8px; }
+button { padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 10px; background: #334155; color: #e2e8f0; }
+button.primary { background: #0ea5e9; color: white; }
+button.danger { background: #ef4444; color: white; }
+#log { margin-top: 8px; max-height: 200px; overflow-y: auto; font-size: 9px; font-family: monospace; color: #94a3b8; line-height: 1.6; padding: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; }
+#log .visited { color: #4ade80; }
+#log .current { color: #38bdf8; }
+#log .path { color: #fb923c; font-weight: bold; }
+.info { font-size: 9px; color: #64748b; margin-top: 8px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h3>Dijkstra's Algorithm</h3>
+  <div class="btn-row">
+    <button class="primary" onclick="startDijkstra()">Run</button>
+    <button onclick="stepDijkstra()">Step</button>
+    <button class="danger" onclick="resetGraph()">Reset</button>
+  </div>
+  <div class="btn-row">
+    <button onclick="randomGraph()">New Graph</button>
+    <button onclick="setMode('source')">Set Source</button>
+    <button onclick="setMode('target')">Set Target</button>
+  </div>
+  <div id="log">Click "Run" to start Dijkstra's algorithm.<br>Or "Step" to go step by step.</div>
+  <div class="info">
+    <strong>Time: O((V+E) log V)</strong> with min-heap<br>
+    Real-world: GPS navigation, network routing, game AI pathfinding
+  </div>
+</div>
+<script>
+let nodes = [];
+let edges = [];
+let source = 0, target = -1;
+let mode = 'view'; // view, source, target
+let dijkstraState = null;
+let animating = false;
+let shortestPath = [];
+
+function createGraph() {
+  nodes = [];
+  edges = [];
+  let numNodes = 10;
+  let cx = width * 0.55;
+  let cy = height * 0.5;
+  
+  // Place nodes in a nice layout
+  for (let i = 0; i < numNodes; i++) {
+    let angle = (i / numNodes) * TWO_PI - HALF_PI;
+    let r = min(width, height) * 0.28;
+    let x = cx + cos(angle) * r + random(-30, 30);
+    let y = cy + sin(angle) * r + random(-30, 30);
+    nodes.push({ x, y, dist: Infinity, visited: false, prev: -1, current: false, inPath: false });
+  }
+  
+  // Create edges with weights
+  for (let i = 0; i < numNodes; i++) {
+    // Connect to 2-3 neighbors
+    let connections = floor(random(2, 4));
+    for (let c = 0; c < connections; c++) {
+      let j = (i + 1 + floor(random(1, 4))) % numNodes;
+      if (j !== i && !edges.find(e => (e.from === i && e.to === j) || (e.from === j && e.to === i))) {
+        let weight = floor(dist(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y) / 30);
+        weight = max(1, weight);
+        edges.push({ from: i, to: j, weight, highlighted: false });
+      }
+    }
+  }
+  
+  source = 0;
+  target = numNodes - 1;
+  nodes[source].dist = 0;
+}
+
+function resetGraph() {
+  for (let n of nodes) {
+    n.dist = Infinity;
+    n.visited = false;
+    n.prev = -1;
+    n.current = false;
+    n.inPath = false;
+  }
+  for (let e of edges) e.highlighted = false;
+  nodes[source].dist = 0;
+  dijkstraState = null;
+  shortestPath = [];
+  animating = false;
+  document.getElementById('log').innerHTML = 'Graph reset. Click "Run" to start.';
+}
+
+function randomGraph() {
+  setup();
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('log').innerHTML += `<br>Click a node to set ${m}.`;
+}
+
+function startDijkstra() {
+  resetGraph();
+  dijkstraState = { queue: [source], step: 0 };
+  animating = true;
+  document.getElementById('log').innerHTML = '<span class="current">Starting from node ' + source + '...</span>';
+}
+
+function stepDijkstra() {
+  if (!dijkstraState) {
+    dijkstraState = { queue: [source], step: 0 };
+    nodes[source].dist = 0;
+    document.getElementById('log').innerHTML = '<span class="current">Starting from node ' + source + '...</span>';
+  }
+  performStep();
+}
+
+function performStep() {
+  if (!dijkstraState || dijkstraState.queue.length === 0) {
+    // Done - reconstruct path
+    reconstructPath();
+    animating = false;
+    return false;
+  }
+  
+  // Find unvisited node with min distance
+  let minDist = Infinity, minNode = -1;
+  for (let i = 0; i < nodes.length; i++) {
+    if (!nodes[i].visited && nodes[i].dist < minDist) {
+      minDist = nodes[i].dist;
+      minNode = i;
+    }
+  }
+  
+  if (minNode === -1 || minNode === target) {
+    reconstructPath();
+    animating = false;
+    return false;
+  }
+  
+  // Clear previous current
+  for (let n of nodes) n.current = false;
+  
+  nodes[minNode].visited = true;
+  nodes[minNode].current = true;
+  
+  let logEl = document.getElementById('log');
+  logEl.innerHTML += `<br><span class="visited">Visit node ${minNode} (dist=${minDist})</span>`;
+  
+  // Relax neighbors
+  for (let e of edges) {
+    let neighbor = -1;
+    if (e.from === minNode) neighbor = e.to;
+    else if (e.to === minNode) neighbor = e.from;
+    
+    if (neighbor !== -1 && !nodes[neighbor].visited) {
+      let newDist = nodes[minNode].dist + e.weight;
+      if (newDist < nodes[neighbor].dist) {
+        nodes[neighbor].dist = newDist;
+        nodes[neighbor].prev = minNode;
+        logEl.innerHTML += `<br>  Update node ${neighbor}: dist=${newDist}`;
+      }
+    }
+  }
+  
+  // Remove from queue
+  dijkstraState.queue = dijkstraState.queue.filter(n => n !== minNode);
+  // Add unvisited neighbors
+  for (let e of edges) {
+    let neighbor = -1;
+    if (e.from === minNode) neighbor = e.to;
+    else if (e.to === minNode) neighbor = e.from;
+    if (neighbor !== -1 && !nodes[neighbor].visited && !dijkstraState.queue.includes(neighbor)) {
+      dijkstraState.queue.push(neighbor);
+    }
+  }
+  
+  dijkstraState.step++;
+  logEl.scrollTop = logEl.scrollHeight;
+  return true;
+}
+
+function reconstructPath() {
+  shortestPath = [];
+  let node = target;
+  while (node !== -1 && node !== source) {
+    shortestPath.unshift(node);
+    nodes[node].inPath = true;
+    node = nodes[node].prev;
+  }
+  if (node === source) {
+    shortestPath.unshift(source);
+    nodes[source].inPath = true;
+  }
+  
+  // Highlight path edges
+  for (let i = 0; i < shortestPath.length - 1; i++) {
+    let from = shortestPath[i], to = shortestPath[i+1];
+    for (let e of edges) {
+      if ((e.from === from && e.to === to) || (e.from === to && e.to === from)) {
+        e.highlighted = true;
+      }
+    }
+  }
+  
+  let logEl = document.getElementById('log');
+  if (shortestPath.length > 0 && shortestPath[0] === source) {
+    logEl.innerHTML += `<br><span class="path">Shortest path: ${shortestPath.join(' → ')} (cost: ${nodes[target].dist})</span>`;
+  } else {
+    logEl.innerHTML += `<br><span class="path">No path found!</span>`;
+  }
+}
+
+let animTimer = 0;
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  createGraph();
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  
+  // Auto-step animation
+  if (animating) {
+    animTimer++;
+    if (animTimer % 20 === 0) {
+      performStep();
+    }
+  }
+  
+  // Draw edges
+  for (let e of edges) {
+    let n1 = nodes[e.from], n2 = nodes[e.to];
+    
+    if (e.highlighted) {
+      stroke(251, 146, 60);
+      strokeWeight(4);
+    } else {
+      stroke(71, 85, 105);
+      strokeWeight(1.5);
+    }
+    line(n1.x, n1.y, n2.x, n2.y);
+    
+    // Weight label
+    noStroke();
+    fill(e.highlighted ? '#fb923c' : '#64748b');
+    textSize(9);
+    textAlign(CENTER, CENTER);
+    let mx = (n1.x + n2.x) / 2;
+    let my = (n1.y + n2.y) / 2;
+    fill(30, 41, 59);
+    ellipse(mx, my, 18, 14);
+    fill(e.highlighted ? '#fb923c' : '#94a3b8');
+    text(e.weight, mx, my);
+  }
+  
+  // Draw nodes
+  for (let i = 0; i < nodes.length; i++) {
+    let n = nodes[i];
+    let radius = 30;
+    
+    // Glow for path nodes
+    if (n.inPath) {
+      noStroke();
+      fill(251, 146, 60, 40);
+      ellipse(n.x, n.y, radius + 15, radius + 15);
+    }
+    
+    // Node fill
+    if (i === source) {
+      fill(74, 222, 128);
+      stroke(74, 222, 128);
+    } else if (i === target) {
+      fill(239, 68, 68);
+      stroke(239, 68, 68);
+    } else if (n.current) {
+      fill(56, 189, 248);
+      stroke(56, 189, 248);
+    } else if (n.visited) {
+      fill(30, 41, 59);
+      stroke(74, 222, 128, 150);
+    } else {
+      fill(30, 41, 59);
+      stroke(100, 116, 139);
+    }
+    
+    strokeWeight(2);
+    ellipse(n.x, n.y, radius, radius);
+    
+    // Node label
+    noStroke();
+    fill(255);
+    textSize(11);
+    textAlign(CENTER, CENTER);
+    text(i, n.x, n.y - 2);
+    
+    // Distance label
+    if (n.dist !== Infinity) {
+      fill(148, 163, 184);
+      textSize(8);
+      text('d=' + n.dist, n.x, n.y + 10);
+    }
+  }
+  
+  // Legend
+  noStroke();
+  textSize(10);
+  textAlign(LEFT);
+  fill(74, 222, 128);
+  text('● Source', width - 160, height - 50);
+  fill(239, 68, 68);
+  text('● Target', width - 160, height - 35);
+  fill(56, 189, 248);
+  text('● Current', width - 160, height - 20);
+  fill(251, 146, 60);
+  text('— Shortest Path', width - 80, height - 50);
+}
+
+function mousePressed() {
+  if (mode === 'source' || mode === 'target') {
+    for (let i = 0; i < nodes.length; i++) {
+      if (dist(mouseX, mouseY, nodes[i].x, nodes[i].y) < 20) {
+        if (mode === 'source') { source = i; }
+        else { target = i; }
+        resetGraph();
+        mode = 'view';
+        break;
+      }
+    }
+  }
+}
+</script>
+</body>
+</html>

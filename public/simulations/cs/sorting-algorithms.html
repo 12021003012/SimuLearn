@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Sorting Algorithms Visualizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#controls { position: absolute; top: 10px; left: 10px; z-index: 10; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button { padding: 8px 16px; background: #1e293b; border: 1px solid #334155; color: #f8fafc; border-radius: 8px; cursor: pointer; font-size: 12px; }
+button:hover { background: #334155; }
+button.active { background: #0ea5e9; border-color: #0ea5e9; }
+select { padding: 8px 12px; background: #1e293b; border: 1px solid #334155; color: #f8fafc; border-radius: 8px; font-size: 12px; }
+.stat { padding: 6px 12px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; font-size: 11px; }
+.stat span { color: #38bdf8; font-weight: bold; }
+input[type="range"] { width: 100px; height: 4px; -webkit-appearance: none; background: #334155; border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <button id="btn-start" class="active">Start</button>
+  <button id="btn-reset">Reset</button>
+  <select id="algo-select">
+    <option value="bubble">Bubble Sort</option>
+    <option value="selection">Selection Sort</option>
+    <option value="insertion">Insertion Sort</option>
+    <option value="merge">Merge Sort</option>
+    <option value="quick">Quick Sort</option>
+  </select>
+  <label style="font-size:11px;color:#94a3b8;">Size:</label>
+  <input type="range" id="size-slider" min="10" max="80" value="30">
+  <label style="font-size:11px;color:#94a3b8;">Speed:</label>
+  <input type="range" id="speed-slider" min="1" max="50" value="15">
+  <div class="stat">Comparisons: <span id="comp-count">0</span></div>
+  <div class="stat">Swaps: <span id="swap-count">0</span></div>
+</div>
+<script>
+let arr = [];
+let n = 30;
+let sorting = false;
+let sorted = false;
+let comparisons = 0;
+let swaps = 0;
+let speed = 15;
+let activeIndices = [];
+let sortedIndices = [];
+let steps = [];
+let stepIndex = 0;
+
+function generateArray() {
+  arr = [];
+  for (let i = 0; i < n; i++) {
+    arr.push(Math.random() * 0.85 + 0.1);
+  }
+  activeIndices = [];
+  sortedIndices = [];
+  comparisons = 0;
+  swaps = 0;
+  sorted = false;
+  steps = [];
+  stepIndex = 0;
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('comp-count').textContent = comparisons;
+  document.getElementById('swap-count').textContent = swaps;
+}
+
+// Generate sort steps
+function generateBubbleSteps() {
+  let a = [...arr];
+  let s = [];
+  for (let i = 0; i < a.length - 1; i++) {
+    for (let j = 0; j < a.length - i - 1; j++) {
+      s.push({ type: 'compare', i: j, j: j + 1, arr: [...a] });
+      if (a[j] > a[j + 1]) {
+        [a[j], a[j + 1]] = [a[j + 1], a[j]];
+        s.push({ type: 'swap', i: j, j: j + 1, arr: [...a] });
+      }
+    }
+    s.push({ type: 'sorted', i: a.length - i - 1, arr: [...a] });
+  }
+  s.push({ type: 'sorted', i: 0, arr: [...a] });
+  return s;
+}
+
+function generateSelectionSteps() {
+  let a = [...arr];
+  let s = [];
+  for (let i = 0; i < a.length - 1; i++) {
+    let minIdx = i;
+    for (let j = i + 1; j < a.length; j++) {
+      s.push({ type: 'compare', i: minIdx, j: j, arr: [...a] });
+      if (a[j] < a[minIdx]) minIdx = j;
+    }
+    if (minIdx !== i) {
+      [a[i], a[minIdx]] = [a[minIdx], a[i]];
+      s.push({ type: 'swap', i: i, j: minIdx, arr: [...a] });
+    }
+    s.push({ type: 'sorted', i: i, arr: [...a] });
+  }
+  s.push({ type: 'sorted', i: a.length - 1, arr: [...a] });
+  return s;
+}
+
+function generateInsertionSteps() {
+  let a = [...arr];
+  let s = [];
+  s.push({ type: 'sorted', i: 0, arr: [...a] });
+  for (let i = 1; i < a.length; i++) {
+    let j = i;
+    while (j > 0) {
+      s.push({ type: 'compare', i: j - 1, j: j, arr: [...a] });
+      if (a[j - 1] > a[j]) {
+        [a[j - 1], a[j]] = [a[j], a[j - 1]];
+        s.push({ type: 'swap', i: j - 1, j: j, arr: [...a] });
+        j--;
+      } else break;
+    }
+    s.push({ type: 'sorted', i: i, arr: [...a] });
+  }
+  return s;
+}
+
+function generateMergeSteps() {
+  let a = [...arr];
+  let s = [];
+  function mergeSort(a, l, r) {
+    if (l >= r) return;
+    let m = Math.floor((l + r) / 2);
+    mergeSort(a, l, m);
+    mergeSort(a, m + 1, r);
+    merge(a, l, m, r);
+  }
+  function merge(a, l, m, r) {
+    let left = a.slice(l, m + 1);
+    let right = a.slice(m + 1, r + 1);
+    let i = 0, j = 0, k = l;
+    while (i < left.length && j < right.length) {
+      s.push({ type: 'compare', i: l + i, j: m + 1 + j, arr: [...a] });
+      if (left[i] <= right[j]) { a[k] = left[i]; i++; }
+      else { a[k] = right[j]; j++; }
+      s.push({ type: 'swap', i: k, j: k, arr: [...a] });
+      k++;
+    }
+    while (i < left.length) { a[k] = left[i]; s.push({ type: 'swap', i: k, j: k, arr: [...a] }); i++; k++; }
+    while (j < right.length) { a[k] = right[j]; s.push({ type: 'swap', i: k, j: k, arr: [...a] }); j++; k++; }
+  }
+  mergeSort(a, 0, a.length - 1);
+  for (let i = 0; i < a.length; i++) s.push({ type: 'sorted', i, arr: [...a] });
+  return s;
+}
+
+function generateQuickSteps() {
+  let a = [...arr];
+  let s = [];
+  function quickSort(a, low, high) {
+    if (low < high) {
+      let pi = partition(a, low, high);
+      quickSort(a, low, pi - 1);
+      quickSort(a, pi + 1, high);
+    }
+  }
+  function partition(a, low, high) {
+    let pivot = a[high];
+    let i = low - 1;
+    for (let j = low; j < high; j++) {
+      s.push({ type: 'compare', i: j, j: high, arr: [...a] });
+      if (a[j] < pivot) {
+        i++;
+        [a[i], a[j]] = [a[j], a[i]];
+        s.push({ type: 'swap', i, j, arr: [...a] });
+      }
+    }
+    [a[i + 1], a[high]] = [a[high], a[i + 1]];
+    s.push({ type: 'swap', i: i + 1, j: high, arr: [...a] });
+    s.push({ type: 'sorted', i: i + 1, arr: [...a] });
+    return i + 1;
+  }
+  quickSort(a, 0, a.length - 1);
+  for (let i = 0; i < a.length; i++) s.push({ type: 'sorted', i, arr: [...a] });
+  return s;
+}
+
+function startSort() {
+  let algo = document.getElementById('algo-select').value;
+  switch (algo) {
+    case 'bubble': steps = generateBubbleSteps(); break;
+    case 'selection': steps = generateSelectionSteps(); break;
+    case 'insertion': steps = generateInsertionSteps(); break;
+    case 'merge': steps = generateMergeSteps(); break;
+    case 'quick': steps = generateQuickSteps(); break;
+  }
+  stepIndex = 0;
+  comparisons = 0;
+  swaps = 0;
+  sortedIndices = [];
+  sorting = true;
+}
+
+document.getElementById('btn-start').addEventListener('click', startSort);
+document.getElementById('btn-reset').addEventListener('click', () => { sorting = false; generateArray(); });
+document.getElementById('size-slider').addEventListener('input', function() { n = parseInt(this.value); generateArray(); });
+document.getElementById('speed-slider').addEventListener('input', function() { speed = parseInt(this.value); });
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  generateArray();
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  
+  // Process steps
+  if (sorting && stepIndex < steps.length) {
+    for (let s = 0; s < speed && stepIndex < steps.length; s++) {
+      let step = steps[stepIndex];
+      arr = step.arr;
+      activeIndices = [step.i, step.j];
+      if (step.type === 'compare') comparisons++;
+      if (step.type === 'swap') swaps++;
+      if (step.type === 'sorted') { sortedIndices.push(step.i); activeIndices = []; }
+      stepIndex++;
+    }
+    updateStats();
+  } else if (sorting && stepIndex >= steps.length) {
+    sorting = false;
+    sorted = true;
+    sortedIndices = Array.from({ length: n }, (_, i) => i);
+    activeIndices = [];
+  }
+
+  // Draw bars
+  let barW = (width - 40) / n;
+  let maxH = height - 100;
+  
+  for (let i = 0; i < arr.length; i++) {
+    let x = 20 + i * barW;
+    let h = arr[i] * maxH;
+    let y = height - 30 - h;
+    
+    if (sortedIndices.includes(i)) {
+      fill(74, 222, 128); // green
+    } else if (activeIndices.includes(i)) {
+      fill(251, 146, 60); // orange
+    } else {
+      // Gradient based on value
+      let r = map(arr[i], 0, 1, 56, 168);
+      let g = map(arr[i], 0, 1, 189, 85);
+      let b = map(arr[i], 0, 1, 248, 247);
+      fill(r, g, b);
+    }
+    
+    noStroke();
+    rect(x + 1, y, barW - 2, h, 2, 2, 0, 0);
+  }
+
+  // Title
+  fill(148, 163, 184);
+  noStroke();
+  textSize(12);
+  textAlign(LEFT);
+  let algo = document.getElementById('algo-select').value;
+  let algoNames = { bubble: 'Bubble Sort O(n²)', selection: 'Selection Sort O(n²)', insertion: 'Insertion Sort O(n²)', merge: 'Merge Sort O(n log n)', quick: 'Quick Sort O(n log n)' };
+  text(algoNames[algo] || '', 20, height - 10);
+  
+  if (sorted) {
+    fill(74, 222, 128);
+    textAlign(CENTER);
+    textSize(16);
+    text('✓ Sorted!', width / 2, height - 10);
+  }
+}
+</script>
+</body>
+</html>

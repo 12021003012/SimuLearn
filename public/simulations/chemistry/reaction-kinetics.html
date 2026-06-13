@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Chemical Reaction Kinetics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#panel { position: absolute; top: 10px; left: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 210px; z-index: 10; }
+#panel h3 { font-size: 13px; margin-bottom: 8px; color: #e2e8f0; }
+.ctrl { margin-bottom: 10px; }
+.ctrl label { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-bottom: 3px; }
+.ctrl label span { color: #38bdf8; font-weight: bold; }
+input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; background: #334155; border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+.tabs { display: flex; gap: 3px; margin-bottom: 10px; }
+.tabs button { flex: 1; padding: 5px 4px; background: #334155; border: none; color: #94a3b8; border-radius: 5px; cursor: pointer; font-size: 9px; }
+.tabs button.active { background: #0ea5e9; color: white; }
+.legend { margin-top: 8px; font-size: 9px; }
+.legend div { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+.info { font-size: 9px; color: #64748b; margin-top: 8px; padding-top: 8px; border-top: 1px solid #334155; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h3>⚗️ Reaction Kinetics</h3>
+  <div class="tabs">
+    <button class="active" id="btn-0" onclick="setOrder(0)">Zero</button>
+    <button id="btn-1" onclick="setOrder(1)">First</button>
+    <button id="btn-2" onclick="setOrder(2)">Second</button>
+  </div>
+  <div class="ctrl">
+    <label>Rate Constant (k) <span id="k-val">0.05</span></label>
+    <input type="range" id="k-slider" min="0.01" max="0.2" value="0.05" step="0.005">
+  </div>
+  <div class="ctrl">
+    <label>Temperature (K) <span id="temp-val">300 K</span></label>
+    <input type="range" id="temp-slider" min="200" max="600" value="300">
+  </div>
+  <div class="ctrl">
+    <label>Initial [A]₀ <span id="a0-val">1.0 M</span></label>
+    <input type="range" id="a0-slider" min="0.2" max="2.0" value="1.0" step="0.1">
+  </div>
+  <div class="legend">
+    <div><span class="dot" style="background:#38bdf8"></span><span style="color:#38bdf8">[A] Reactant</span></div>
+    <div><span class="dot" style="background:#4ade80"></span><span style="color:#4ade80">[B] Product</span></div>
+    <div><span class="dot" style="background:#fb923c"></span><span style="color:#fb923c">Rate</span></div>
+  </div>
+  <div class="info">
+    Arrhenius: k = Ae^(-Ea/RT)<br>
+    Real-world: Drug decay in body (1st order), radioactive decay, enzyme catalysis
+  </div>
+</div>
+<script>
+let reactionOrder = 1;
+let k = 0.05;
+let temp = 300;
+let a0 = 1.0;
+let time = 0;
+let particles = [];
+let concHistory = [];
+let prodHistory = [];
+let rateHistory = [];
+const MAX_HISTORY = 300;
+const NUM_PARTICLES = 60;
+
+document.getElementById('k-slider').addEventListener('input', function() { k = parseFloat(this.value); document.getElementById('k-val').textContent = k.toFixed(3); resetSim(); });
+document.getElementById('temp-slider').addEventListener('input', function() { temp = parseFloat(this.value); document.getElementById('temp-val').textContent = temp + ' K'; });
+document.getElementById('a0-slider').addEventListener('input', function() { a0 = parseFloat(this.value); document.getElementById('a0-val').textContent = a0.toFixed(1) + ' M'; resetSim(); });
+
+function setOrder(o) {
+  reactionOrder = o;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + o).classList.add('active');
+  resetSim();
+}
+
+function resetSim() {
+  time = 0;
+  concHistory = [];
+  prodHistory = [];
+  rateHistory = [];
+  particles = [];
+  for (let i = 0; i < NUM_PARTICLES; i++) {
+    particles.push({
+      x: random(width * 0.25, width * 0.7),
+      y: random(80, height * 0.55),
+      vx: random(-1, 1),
+      vy: random(-1, 1),
+      reacted: false,
+      size: random(6, 10)
+    });
+  }
+}
+
+function getConcentration(t) {
+  switch(reactionOrder) {
+    case 0: return Math.max(0, a0 - k * t);
+    case 1: return a0 * Math.exp(-k * t);
+    case 2: return a0 / (1 + a0 * k * t);
+  }
+}
+
+function getRate(conc) {
+  switch(reactionOrder) {
+    case 0: return conc > 0 ? k : 0;
+    case 1: return k * conc;
+    case 2: return k * conc * conc;
+  }
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  resetSim();
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); resetSim(); }
+
+function draw() {
+  background(15, 23, 42);
+  time += 0.5;
+  
+  let conc = getConcentration(time);
+  let product = a0 - conc;
+  let rate = getRate(conc);
+  
+  concHistory.push(conc);
+  prodHistory.push(product);
+  rateHistory.push(rate);
+  if (concHistory.length > MAX_HISTORY) {
+    concHistory.shift();
+    prodHistory.shift();
+    rateHistory.shift();
+  }
+  
+  // Update particles
+  let reactFraction = 1 - conc / a0;
+  let numReacted = Math.floor(reactFraction * NUM_PARTICLES);
+  
+  // Reaction container
+  let boxX = width * 0.25, boxY = 60;
+  let boxW = width * 0.48, boxH = height * 0.48;
+  
+  fill(20, 27, 45);
+  stroke(71, 85, 105);
+  strokeWeight(2);
+  rect(boxX, boxY, boxW, boxH, 8);
+  
+  // Temperature indicator
+  let tempColor = lerpColor(color(59, 130, 246), color(239, 68, 68), (temp - 200) / 400);
+  fill(tempColor);
+  noStroke();
+  rect(boxX + boxW - 25, boxY + 5, 15, boxH - 10, 4);
+  fill(255, 255, 255, 150);
+  textSize(8);
+  textAlign(CENTER);
+  text(temp + 'K', boxX + boxW - 17, boxY + boxH - 15);
+  
+  // Animate particles
+  for (let i = 0; i < particles.length; i++) {
+    let p = particles[i];
+    p.reacted = i < numReacted;
+    
+    // Brownian motion (faster at higher temp)
+    let speed = map(temp, 200, 600, 0.3, 2.5);
+    p.vx += random(-speed, speed) * 0.1;
+    p.vy += random(-speed, speed) * 0.1;
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+    p.x += p.vx;
+    p.y += p.vy;
+    
+    // Bounds
+    if (p.x < boxX + 10 || p.x > boxX + boxW - 30) p.vx *= -1;
+    if (p.y < boxY + 10 || p.y > boxY + boxH - 10) p.vy *= -1;
+    p.x = constrain(p.x, boxX + 10, boxX + boxW - 30);
+    p.y = constrain(p.y, boxY + 10, boxY + boxH - 10);
+    
+    // Draw
+    noStroke();
+    if (p.reacted) {
+      fill(74, 222, 128, 200);
+    } else {
+      fill(56, 189, 248, 200);
+    }
+    ellipse(p.x, p.y, p.size, p.size);
+  }
+  
+  // Particle labels
+  noStroke();
+  fill(56, 189, 248);
+  textSize(10);
+  textAlign(LEFT);
+  text('● Reactant A', boxX + 10, boxY - 10);
+  fill(74, 222, 128);
+  text('● Product B', boxX + 100, boxY - 10);
+  
+  // === Concentration vs Time Graph ===
+  let graphX = width * 0.25;
+  let graphY = height * 0.58;
+  let graphW = width * 0.48;
+  let graphH = height * 0.35;
+  
+  // Background
+  fill(20, 27, 45);
+  stroke(71, 85, 105);
+  strokeWeight(1);
+  rect(graphX, graphY, graphW, graphH, 8);
+  
+  // Grid
+  stroke(30, 41, 59);
+  for (let i = 1; i < 5; i++) {
+    let y = graphY + (i / 5) * graphH;
+    line(graphX, y, graphX + graphW, y);
+  }
+  
+  // Axes labels
+  noStroke();
+  fill(100, 116, 139);
+  textSize(9);
+  textAlign(CENTER);
+  text('Time →', graphX + graphW / 2, graphY + graphH + 15);
+  
+  push();
+  translate(graphX - 15, graphY + graphH / 2);
+  rotate(-HALF_PI);
+  text('[Concentration]', 0, 0);
+  pop();
+  
+  // Plot [A]
+  noFill();
+  stroke(56, 189, 248);
+  strokeWeight(2);
+  beginShape();
+  for (let i = 0; i < concHistory.length; i++) {
+    let x = graphX + (i / MAX_HISTORY) * graphW;
+    let y = graphY + graphH - (concHistory[i] / (a0 * 1.1)) * graphH;
+    vertex(x, y);
+  }
+  endShape();
+  
+  // Plot [B]
+  stroke(74, 222, 128);
+  beginShape();
+  for (let i = 0; i < prodHistory.length; i++) {
+    let x = graphX + (i / MAX_HISTORY) * graphW;
+    let y = graphY + graphH - (prodHistory[i] / (a0 * 1.1)) * graphH;
+    vertex(x, y);
+  }
+  endShape();
+  
+  // Plot rate (scaled)
+  stroke(251, 146, 60, 150);
+  strokeWeight(1);
+  beginShape();
+  let maxRate = reactionOrder === 0 ? k : k * a0;
+  for (let i = 0; i < rateHistory.length; i++) {
+    let x = graphX + (i / MAX_HISTORY) * graphW;
+    let y = graphY + graphH - (rateHistory[i] / (maxRate * 1.2)) * graphH;
+    vertex(x, y);
+  }
+  endShape();
+  
+  // Current values readout
+  noStroke();
+  fill(228, 228, 231);
+  textSize(11);
+  textAlign(RIGHT);
+  text(`[A] = ${conc.toFixed(3)} M`, width - 20, 30);
+  text(`[B] = ${product.toFixed(3)} M`, width - 20, 48);
+  text(`Rate = ${rate.toFixed(4)} M/s`, width - 20, 66);
+  
+  // Half-life
+  let halfLife;
+  switch(reactionOrder) {
+    case 0: halfLife = a0 / (2 * k); break;
+    case 1: halfLife = 0.693 / k; break;
+    case 2: halfLife = 1 / (k * a0); break;
+  }
+  fill(168, 85, 247);
+  textSize(10);
+  text(`t½ = ${halfLife.toFixed(1)} s`, width - 20, 88);
+  
+  // Order info
+  fill(148, 163, 184);
+  textSize(10);
+  textAlign(LEFT);
+  let ratelaw = reactionOrder === 0 ? 'Rate = k' : reactionOrder === 1 ? 'Rate = k[A]' : 'Rate = k[A]²';
+  text(`Order: ${reactionOrder}  |  Rate Law: ${ratelaw}`, graphX, graphY - 10);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Cell Division - Mitosis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#info { position: absolute; top: 10px; left: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 220px; z-index: 10; }
+#info h3 { font-size: 13px; margin-bottom: 8px; color: #e2e8f0; }
+.phase { padding: 6px 8px; margin-bottom: 4px; border-radius: 6px; font-size: 10px; color: #94a3b8; cursor: pointer; border: 1px solid transparent; }
+.phase.active { background: #334155; border-color: #0ea5e9; color: #38bdf8; }
+.phase .name { font-weight: bold; color: #e2e8f0; }
+#description { margin-top: 10px; font-size: 10px; color: #94a3b8; line-height: 1.5; padding: 8px; background: #0f172a; border-radius: 6px; border: 1px solid #334155; }
+.ctrl { margin-top: 10px; }
+.ctrl label { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-bottom: 3px; }
+.ctrl label span { color: #fb923c; font-weight: bold; }
+input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; background: #334155; border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fb923c; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="info">
+  <h3>🧬 Mitosis - Cell Division</h3>
+  <div class="phase active" id="ph-interphase" onclick="setPhase(0)"><span class="name">Interphase</span> - Growth & DNA replication</div>
+  <div class="phase" id="ph-prophase" onclick="setPhase(1)"><span class="name">Prophase</span> - Chromatin condenses</div>
+  <div class="phase" id="ph-metaphase" onclick="setPhase(2)"><span class="name">Metaphase</span> - Chromosomes align</div>
+  <div class="phase" id="ph-anaphase" onclick="setPhase(3)"><span class="name">Anaphase</span> - Chromatids separate</div>
+  <div class="phase" id="ph-telophase" onclick="setPhase(4)"><span class="name">Telophase</span> - Nuclear envelope reforms</div>
+  <div class="phase" id="ph-cytokinesis" onclick="setPhase(5)"><span class="name">Cytokinesis</span> - Cell splits in two</div>
+  <div id="description">Cell grows, organelles duplicate, DNA replicates (S phase). Each chromosome becomes two sister chromatids joined at centromere.</div>
+  <div class="ctrl">
+    <label>Animation Speed <span id="speed-val">1.0x</span></label>
+    <input type="range" id="speed-slider" min="0.2" max="3" value="1" step="0.1">
+  </div>
+</div>
+<script>
+const phases = ['interphase', 'prophase', 'metaphase', 'anaphase', 'telophase', 'cytokinesis'];
+const descriptions = [
+  'Cell grows, organelles duplicate, DNA replicates (S phase). Each chromosome becomes two sister chromatids joined at centromere.',
+  'Chromatin condenses into visible chromosomes. Centrioles move to poles. Spindle fibers begin forming. Nuclear envelope starts to break down.',
+  'Chromosomes line up at the cell equator (metaphase plate). Spindle fibers attach to centromeres. This ensures equal distribution.',
+  'Sister chromatids are pulled apart to opposite poles by shortening spindle fibers. The cell elongates as poles move apart.',
+  'Chromosomes arrive at poles and begin to decondense. Nuclear envelope reforms around each set. Spindle fibers disappear.',
+  'The cytoplasm divides. In animal cells, a cleavage furrow pinches the cell in two. Result: two identical daughter cells.'
+];
+
+let currentPhase = 0;
+let phaseProgress = 0;
+let speed = 1.0;
+let autoPlay = true;
+let time = 0;
+
+document.getElementById('speed-slider').addEventListener('input', function() {
+  speed = parseFloat(this.value);
+  document.getElementById('speed-val').textContent = speed.toFixed(1) + 'x';
+});
+
+function setPhase(p) {
+  currentPhase = p;
+  phaseProgress = 0;
+  updatePhaseUI();
+}
+
+function updatePhaseUI() {
+  document.querySelectorAll('.phase').forEach((el, i) => {
+    el.classList.toggle('active', i === currentPhase);
+  });
+  document.getElementById('description').textContent = descriptions[currentPhase];
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  time += 0.016 * speed;
+  
+  // Auto advance phases
+  phaseProgress += 0.003 * speed;
+  if (phaseProgress >= 1) {
+    phaseProgress = 0;
+    currentPhase = (currentPhase + 1) % 6;
+    updatePhaseUI();
+  }
+  
+  let cx = width * 0.6;
+  let cy = height * 0.5;
+  
+  switch(currentPhase) {
+    case 0: drawInterphase(cx, cy); break;
+    case 1: drawProphase(cx, cy); break;
+    case 2: drawMetaphase(cx, cy); break;
+    case 3: drawAnaphase(cx, cy); break;
+    case 4: drawTelophase(cx, cy); break;
+    case 5: drawCytokinesis(cx, cy); break;
+  }
+  
+  // Progress bar
+  let barW = width - 260;
+  let barX = 240;
+  let barY = height - 30;
+  fill(30, 41, 59);
+  noStroke();
+  rect(barX, barY, barW, 8, 4);
+  fill(56, 189, 248);
+  rect(barX, barY, barW * ((currentPhase + phaseProgress) / 6), 8, 4);
+  
+  // Phase markers
+  for (let i = 0; i <= 5; i++) {
+    let x = barX + (i / 6) * barW;
+    fill(i <= currentPhase ? '#38bdf8' : '#475569');
+    ellipse(x, barY + 4, 8, 8);
+  }
+}
+
+function drawCell(cx, cy, radius, squeeze = 0) {
+  // Cell membrane
+  noFill();
+  stroke(74, 222, 128, 150);
+  strokeWeight(3);
+  
+  if (squeeze > 0) {
+    // Cleavage furrow
+    beginShape();
+    for (let a = 0; a < TWO_PI; a += 0.05) {
+      let r = radius;
+      if (Math.abs(cos(a)) < 0.3) {
+        r *= (1 - squeeze * 0.4);
+      }
+      vertex(cx + cos(a) * r * 1.2, cy + sin(a) * r);
+    }
+    endShape(CLOSE);
+  } else {
+    ellipse(cx, cy, radius * 2.4, radius * 2);
+  }
+  
+  // Cytoplasm
+  fill(74, 222, 128, 20);
+  noStroke();
+  if (squeeze > 0) {
+    beginShape();
+    for (let a = 0; a < TWO_PI; a += 0.05) {
+      let r = radius - 3;
+      if (Math.abs(cos(a)) < 0.3) r *= (1 - squeeze * 0.4);
+      vertex(cx + cos(a) * r * 1.2, cy + sin(a) * r);
+    }
+    endShape(CLOSE);
+  } else {
+    ellipse(cx, cy, (radius - 3) * 2.4, (radius - 3) * 2);
+  }
+}
+
+function drawNucleus(cx, cy, radius, dissolving = 0) {
+  let alpha = 255 * (1 - dissolving);
+  stroke(168, 85, 247, alpha);
+  strokeWeight(2);
+  noFill();
+  
+  if (dissolving > 0) {
+    // Breaking apart
+    drawingContext.setLineDash([5 + dissolving * 15, dissolving * 20]);
+  }
+  ellipse(cx, cy, radius * 2, radius * 2);
+  drawingContext.setLineDash([]);
+}
+
+function drawChromosome(x, y, condensed, separated = false, angle = 0) {
+  push();
+  translate(x, y);
+  rotate(angle);
+  
+  if (!condensed) {
+    // Chromatin - loose squiggly lines
+    stroke(239, 68, 68, 100);
+    strokeWeight(1);
+    noFill();
+    beginShape();
+    for (let i = 0; i < 20; i++) {
+      vertex(sin(i * 0.8 + time) * 10, i * 2 - 20);
+    }
+    endShape();
+  } else if (!separated) {
+    // X-shaped chromosome (sister chromatids joined)
+    stroke(239, 68, 68);
+    strokeWeight(3);
+    line(-8, -15, 0, 0);
+    line(0, 0, -8, 15);
+    line(8, -15, 0, 0);
+    line(0, 0, 8, 15);
+    // Centromere
+    fill(251, 146, 60);
+    noStroke();
+    ellipse(0, 0, 6, 6);
+  } else {
+    // Single chromatid (separated)
+    stroke(239, 68, 68);
+    strokeWeight(3);
+    line(0, -12, 0, 12);
+    // Centromere
+    fill(251, 146, 60);
+    noStroke();
+    ellipse(0, 0, 4, 4);
+  }
+  pop();
+}
+
+function drawSpindleFibers(cx, cy, radius) {
+  stroke(148, 163, 184, 60);
+  strokeWeight(0.5);
+  for (let i = 0; i < 12; i++) {
+    let angle = (i / 12) * PI - PI/2;
+    line(cx - radius * 1.1, cy, cx + cos(angle) * 20, cy + sin(angle) * 20);
+    line(cx + radius * 1.1, cy, cx + cos(angle) * 20, cy + sin(angle) * 20);
+  }
+}
+
+function drawInterphase(cx, cy) {
+  let r = 100;
+  drawCell(cx, cy, r);
+  drawNucleus(cx, cy, 50);
+  
+  // Chromatin (loose DNA)
+  for (let i = 0; i < 8; i++) {
+    let angle = (i / 8) * TWO_PI;
+    let dist = 20 + sin(time + i) * 10;
+    drawChromosome(cx + cos(angle) * dist, cy + sin(angle) * dist, false, false, angle);
+  }
+  
+  // Centrioles
+  fill(251, 191, 36);
+  noStroke();
+  ellipse(cx + 60, cy - 30, 8, 8);
+  ellipse(cx + 65, cy - 25, 8, 8);
+  
+  textSize(9);
+  fill(251, 191, 36);
+  text('Centrioles', cx + 62, cy - 40);
+}
+
+function drawProphase(cx, cy) {
+  let r = 100;
+  drawCell(cx, cy, r);
+  drawNucleus(cx, cy, 50, phaseProgress * 0.8);
+  
+  // Condensing chromosomes
+  for (let i = 0; i < 4; i++) {
+    let angle = (i / 4) * TWO_PI + 0.3;
+    let dist = 20;
+    drawChromosome(cx + cos(angle) * dist, cy + sin(angle) * dist, true, false, angle + sin(time) * 0.1);
+  }
+  
+  // Centrioles moving to poles
+  let poleOffset = phaseProgress * 80;
+  fill(251, 191, 36);
+  noStroke();
+  ellipse(cx - poleOffset, cy, 8, 8);
+  ellipse(cx + poleOffset, cy, 8, 8);
+  
+  // Early spindle fibers
+  if (phaseProgress > 0.5) {
+    stroke(148, 163, 184, 40);
+    strokeWeight(0.5);
+    for (let i = 0; i < 6; i++) {
+      let y = cy + (i - 3) * 15;
+      line(cx - poleOffset, cy, cx, y);
+      line(cx + poleOffset, cy, cx, y);
+    }
+  }
+}
+
+function drawMetaphase(cx, cy) {
+  let r = 100;
+  drawCell(cx, cy, r);
+  drawSpindleFibers(cx, cy, 90);
+  
+  // Chromosomes aligned at metaphase plate
+  for (let i = 0; i < 4; i++) {
+    let y = cy + (i - 1.5) * 25;
+    drawChromosome(cx, y, true, false, PI/2);
+    
+    // Spindle fiber attachments
+    stroke(148, 163, 184, 100);
+    strokeWeight(1);
+    line(cx - 90, cy, cx - 4, y);
+    line(cx + 90, cy, cx + 4, y);
+  }
+  
+  // Centrioles at poles
+  fill(251, 191, 36);
+  noStroke();
+  ellipse(cx - 90, cy, 8, 8);
+  ellipse(cx + 90, cy, 8, 8);
+  
+  // Metaphase plate line
+  stroke(74, 222, 128, 60);
+  strokeWeight(1);
+  drawingContext.setLineDash([3, 5]);
+  line(cx, cy - 70, cx, cy + 70);
+  drawingContext.setLineDash([]);
+}
+
+function drawAnaphase(cx, cy) {
+  let r = 110;
+  drawCell(cx, cy, r);
+  
+  let separation = phaseProgress * 60;
+  
+  // Separated chromatids moving to poles
+  for (let i = 0; i < 4; i++) {
+    let y = cy + (i - 1.5) * 20;
+    drawChromosome(cx - separation, y, true, true, 0);
+    drawChromosome(cx + separation, y, true, true, 0);
+    
+    // Pulling fibers
+    stroke(148, 163, 184, 80);
+    strokeWeight(0.5);
+    line(cx - 100, cy, cx - separation, y);
+    line(cx + 100, cy, cx + separation, y);
+  }
+  
+  // Centrioles at poles
+  fill(251, 191, 36);
+  noStroke();
+  ellipse(cx - 100, cy, 8, 8);
+  ellipse(cx + 100, cy, 8, 8);
+}
+
+function drawTelophase(cx, cy) {
+  let r = 110;
+  drawCell(cx, cy, r, phaseProgress * 0.3);
+  
+  // Two nuclei reforming
+  let sep = 60;
+  drawNucleus(cx - sep, cy, 35, 1 - phaseProgress);
+  drawNucleus(cx + sep, cy, 35, 1 - phaseProgress);
+  
+  // Decondensing chromosomes
+  for (let i = 0; i < 4; i++) {
+    let angle = (i / 4) * TWO_PI;
+    let dist = 15;
+    let condensed = phaseProgress < 0.7;
+    drawChromosome(cx - sep + cos(angle) * dist, cy + sin(angle) * dist, condensed, true, angle);
+    drawChromosome(cx + sep + cos(angle) * dist, cy + sin(angle) * dist, condensed, true, angle);
+  }
+}
+
+function drawCytokinesis(cx, cy) {
+  let r = 100;
+  let squeeze = phaseProgress;
+  
+  if (squeeze < 0.9) {
+    drawCell(cx, cy, r, squeeze);
+    
+    // Two nuclei
+    let sep = 55;
+    drawNucleus(cx - sep, cy, 30);
+    drawNucleus(cx + sep, cy, 30);
+    
+    // Cleavage furrow arrows
+    fill(251, 146, 60, 150);
+    noStroke();
+    textSize(9);
+    textAlign(CENTER);
+    text('← Cleavage Furrow →', cx, cy + r + 20);
+  } else {
+    // Two separate cells
+    let sep = 80;
+    drawCell(cx - sep, cy, r * 0.6);
+    drawCell(cx + sep, cy, r * 0.6);
+    drawNucleus(cx - sep, cy, 25);
+    drawNucleus(cx + sep, cy, 25);
+    
+    fill(74, 222, 128, 200);
+    noStroke();
+    textSize(11);
+    textAlign(CENTER);
+    text('Two Identical Daughter Cells!', cx, cy + 90);
+  }
+}
+</script>
+</body>
+</html>

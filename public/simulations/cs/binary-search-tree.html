@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Binary Search Tree Visualization</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#controls { position: absolute; top: 10px; left: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 220px; z-index: 10; }
+#controls h3 { font-size: 13px; margin-bottom: 8px; color: #e2e8f0; }
+#input-row { display: flex; gap: 6px; margin-bottom: 10px; }
+#node-input { flex: 1; padding: 6px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 12px; }
+button { padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; }
+.btn-insert { background: #0ea5e9; color: white; }
+.btn-delete { background: #ef4444; color: white; }
+.btn-search { background: #f59e0b; color: white; }
+.btn-reset { background: #64748b; color: white; }
+.btn-row { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+#traversal { margin-top: 8px; font-size: 10px; color: #94a3b8; }
+#traversal strong { color: #38bdf8; display: block; margin-top: 4px; }
+.info { font-size: 9px; color: #64748b; margin-top: 8px; padding-top: 8px; border-top: 1px solid #334155; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <h3>Binary Search Tree</h3>
+  <div id="input-row">
+    <input type="number" id="node-input" placeholder="Value...">
+    <button class="btn-insert" onclick="insertNode()">Insert</button>
+  </div>
+  <div class="btn-row">
+    <button class="btn-search" onclick="searchNode()">Search</button>
+    <button class="btn-delete" onclick="deleteNode()">Delete</button>
+    <button class="btn-reset" onclick="resetTree()">Reset</button>
+  </div>
+  <div class="btn-row">
+    <button style="background:#334155;color:#e2e8f0" onclick="traverseInorder()">In-order</button>
+    <button style="background:#334155;color:#e2e8f0" onclick="traversePreorder()">Pre-order</button>
+    <button style="background:#334155;color:#e2e8f0" onclick="traversePostorder()">Post-order</button>
+  </div>
+  <div id="traversal">
+    <strong>Traversal: <span id="trav-result">-</span></strong>
+    Height: <span id="tree-height">0</span> | Nodes: <span id="node-count">0</span>
+  </div>
+  <div class="info">
+    BST Property: Left subtree values &lt; parent &lt; Right subtree values.<br>
+    Avg search: O(log n) | Worst: O(n)
+  </div>
+</div>
+<script>
+class TreeNode {
+  constructor(val) {
+    this.val = val;
+    this.left = null;
+    this.right = null;
+    this.x = 0;
+    this.y = 0;
+    this.targetX = 0;
+    this.targetY = 0;
+    this.highlighted = false;
+    this.highlightColor = null;
+  }
+}
+
+let root = null;
+let highlightPath = [];
+let animTime = 0;
+
+function insert(node, val) {
+  if (!node) return new TreeNode(val);
+  if (val < node.val) node.left = insert(node.left, val);
+  else if (val > node.val) node.right = insert(node.right, val);
+  return node;
+}
+
+function deleteN(node, val) {
+  if (!node) return null;
+  if (val < node.val) node.left = deleteN(node.left, val);
+  else if (val > node.val) node.right = deleteN(node.right, val);
+  else {
+    if (!node.left) return node.right;
+    if (!node.right) return node.left;
+    let min = node.right;
+    while (min.left) min = min.left;
+    node.val = min.val;
+    node.right = deleteN(node.right, min.val);
+  }
+  return node;
+}
+
+function searchPath(node, val, path = []) {
+  if (!node) return path;
+  path.push(node);
+  if (val === node.val) return path;
+  if (val < node.val) return searchPath(node.left, val, path);
+  return searchPath(node.right, val, path);
+}
+
+function getHeight(node) {
+  if (!node) return 0;
+  return 1 + Math.max(getHeight(node.left), getHeight(node.right));
+}
+
+function countNodes(node) {
+  if (!node) return 0;
+  return 1 + countNodes(node.left) + countNodes(node.right);
+}
+
+function inorder(node, result = []) {
+  if (!node) return result;
+  inorder(node.left, result);
+  result.push(node.val);
+  inorder(node.right, result);
+  return result;
+}
+
+function preorder(node, result = []) {
+  if (!node) return result;
+  result.push(node.val);
+  preorder(node.left, result);
+  preorder(node.right, result);
+  return result;
+}
+
+function postorder(node, result = []) {
+  if (!node) return result;
+  postorder(node.left, result);
+  postorder(node.right, result);
+  result.push(node.val);
+  return result;
+}
+
+function insertNode() {
+  let val = parseInt(document.getElementById('node-input').value);
+  if (isNaN(val)) return;
+  root = insert(root, val);
+  highlightPath = searchPath(root, val);
+  highlightPath.forEach(n => { n.highlighted = true; n.highlightColor = '#0ea5e9'; });
+  setTimeout(() => highlightPath.forEach(n => n.highlighted = false), 1500);
+  updateInfo();
+  document.getElementById('node-input').value = '';
+}
+
+function searchNode() {
+  let val = parseInt(document.getElementById('node-input').value);
+  if (isNaN(val)) return;
+  highlightPath = searchPath(root, val);
+  let found = highlightPath.length > 0 && highlightPath[highlightPath.length-1].val === val;
+  highlightPath.forEach(n => { n.highlighted = true; n.highlightColor = found ? '#4ade80' : '#ef4444'; });
+  setTimeout(() => highlightPath.forEach(n => n.highlighted = false), 2000);
+  document.getElementById('trav-result').textContent = found ? `Found ${val}!` : `${val} not found`;
+}
+
+function deleteNode() {
+  let val = parseInt(document.getElementById('node-input').value);
+  if (isNaN(val)) return;
+  root = deleteN(root, val);
+  updateInfo();
+  document.getElementById('node-input').value = '';
+}
+
+function resetTree() {
+  root = null;
+  // Insert default values
+  [50, 30, 70, 20, 40, 60, 80, 10, 25, 35, 45].forEach(v => root = insert(root, v));
+  updateInfo();
+}
+
+function traverseInorder() {
+  document.getElementById('trav-result').textContent = inorder(root).join(' → ');
+}
+function traversePreorder() {
+  document.getElementById('trav-result').textContent = preorder(root).join(' → ');
+}
+function traversePostorder() {
+  document.getElementById('trav-result').textContent = postorder(root).join(' → ');
+}
+
+function updateInfo() {
+  document.getElementById('tree-height').textContent = getHeight(root);
+  document.getElementById('node-count').textContent = countNodes(root);
+}
+
+function assignPositions(node, x, y, spread) {
+  if (!node) return;
+  node.targetX = x;
+  node.targetY = y;
+  assignPositions(node.left, x - spread, y + 70, spread * 0.55);
+  assignPositions(node.right, x + spread, y + 70, spread * 0.55);
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  resetTree();
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  animTime += 0.02;
+  
+  if (!root) {
+    fill(100, 116, 139);
+    textSize(14);
+    textAlign(CENTER, CENTER);
+    text('Tree is empty. Insert a node!', width / 2, height / 2);
+    return;
+  }
+  
+  // Assign positions
+  let startX = width * 0.55;
+  let startY = 80;
+  let spread = Math.min(width * 0.22, 200);
+  assignPositions(root, startX, startY, spread);
+  
+  // Animate positions
+  animatePositions(root);
+  
+  // Draw edges first
+  drawEdges(root);
+  
+  // Draw nodes
+  drawNodes(root);
+}
+
+function animatePositions(node) {
+  if (!node) return;
+  node.x = lerp(node.x || node.targetX, node.targetX, 0.1);
+  node.y = lerp(node.y || node.targetY, node.targetY, 0.1);
+  animatePositions(node.left);
+  animatePositions(node.right);
+}
+
+function drawEdges(node) {
+  if (!node) return;
+  strokeWeight(2);
+  
+  if (node.left) {
+    stroke(node.left.highlighted ? node.left.highlightColor : '#475569');
+    line(node.x, node.y, node.left.x, node.left.y);
+    drawEdges(node.left);
+  }
+  if (node.right) {
+    stroke(node.right.highlighted ? node.right.highlightColor : '#475569');
+    line(node.x, node.y, node.right.x, node.right.y);
+    drawEdges(node.right);
+  }
+}
+
+function drawNodes(node) {
+  if (!node) return;
+  
+  let radius = 28;
+  
+  // Node circle
+  if (node.highlighted) {
+    fill(node.highlightColor);
+    stroke(255);
+    strokeWeight(2);
+    // Glow
+    noStroke();
+    fill(node.highlightColor + '40');
+    ellipse(node.x, node.y, radius + 12, radius + 12);
+    fill(node.highlightColor);
+    stroke(255);
+    strokeWeight(2);
+  } else {
+    fill(30, 41, 59);
+    stroke(100, 116, 139);
+    strokeWeight(1.5);
+  }
+  
+  ellipse(node.x, node.y, radius, radius);
+  
+  // Value text
+  noStroke();
+  fill(node.highlighted ? '#0f172a' : '#f8fafc');
+  textSize(11);
+  textAlign(CENTER, CENTER);
+  text(node.val, node.x, node.y);
+  
+  drawNodes(node.left);
+  drawNodes(node.right);
+}
+
+// Handle keyboard
+document.getElementById('node-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') insertNode();
+});
+</script>
+</body>
+</html>

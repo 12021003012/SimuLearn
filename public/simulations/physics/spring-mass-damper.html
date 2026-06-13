@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Simple Harmonic Motion - Spring Mass System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#panel { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px 20px; display: flex; gap: 20px; align-items: center; z-index: 10; }
+.ctrl { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ctrl label { font-size: 10px; color: #94a3b8; }
+.ctrl span { font-size: 11px; color: #38bdf8; font-weight: bold; }
+input[type="range"] { width: 90px; height: 4px; -webkit-appearance: none; background: #334155; border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <div class="ctrl">
+    <label>Spring Constant (k)</label>
+    <input type="range" id="k-slider" min="5" max="100" value="40">
+    <span id="k-val">40 N/m</span>
+  </div>
+  <div class="ctrl">
+    <label>Mass (m)</label>
+    <input type="range" id="m-slider" min="1" max="20" value="5">
+    <span id="m-val">5 kg</span>
+  </div>
+  <div class="ctrl">
+    <label>Damping (b)</label>
+    <input type="range" id="b-slider" min="0" max="5" value="0.5" step="0.1">
+    <span id="b-val">0.5</span>
+  </div>
+  <div class="ctrl">
+    <label>Amplitude</label>
+    <input type="range" id="a-slider" min="20" max="150" value="80">
+    <span id="a-val">80 px</span>
+  </div>
+</div>
+<script>
+let k = 40, m = 5, b = 0.5, A = 80;
+let time = 0;
+let dispHistory = [];
+let velHistory = [];
+let accelHistory = [];
+const GRAPH_LEN = 200;
+
+document.getElementById('k-slider').addEventListener('input', function() { k = parseFloat(this.value); document.getElementById('k-val').textContent = k + ' N/m'; });
+document.getElementById('m-slider').addEventListener('input', function() { m = parseFloat(this.value); document.getElementById('m-val').textContent = m + ' kg'; });
+document.getElementById('b-slider').addEventListener('input', function() { b = parseFloat(this.value); document.getElementById('b-val').textContent = b; });
+document.getElementById('a-slider').addEventListener('input', function() { A = parseFloat(this.value); document.getElementById('a-val').textContent = A + ' px'; });
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  for (let i = 0; i < GRAPH_LEN; i++) {
+    dispHistory.push(0);
+    velHistory.push(0);
+    accelHistory.push(0);
+  }
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  time += 0.02;
+  
+  let omega = Math.sqrt(k / m);
+  let gamma = b / (2 * m);
+  let dampedOmega = Math.sqrt(Math.max(omega * omega - gamma * gamma, 0.01));
+  
+  // Displacement
+  let x = A * Math.exp(-gamma * time) * Math.cos(dampedOmega * time);
+  let v = -A * Math.exp(-gamma * time) * (gamma * Math.cos(dampedOmega * time) + dampedOmega * Math.sin(dampedOmega * time));
+  let a = -omega * omega * x - 2 * gamma * v;
+  
+  dispHistory.push(x);
+  velHistory.push(v * 0.3);
+  accelHistory.push(a * 0.05);
+  if (dispHistory.length > GRAPH_LEN) dispHistory.shift();
+  if (velHistory.length > GRAPH_LEN) velHistory.shift();
+  if (accelHistory.length > GRAPH_LEN) accelHistory.shift();
+  
+  // === LEFT SIDE: Spring-Mass Visualization ===
+  let centerX = width * 0.25;
+  let centerY = height * 0.45;
+  let wallX = centerX - 150;
+  let massX = centerX + x;
+  
+  // Wall
+  fill(71, 85, 105);
+  noStroke();
+  rect(wallX - 10, centerY - 60, 10, 120);
+  // Hatching
+  stroke(100, 116, 139);
+  strokeWeight(1);
+  for (let i = -60; i < 60; i += 10) {
+    line(wallX - 10, centerY + i, wallX - 20, centerY + i + 10);
+  }
+  
+  // Spring (zigzag)
+  let springStart = wallX;
+  let springEnd = massX - 25;
+  let coils = 12;
+  let coilWidth = 15;
+  stroke(148, 163, 184);
+  strokeWeight(2);
+  noFill();
+  beginShape();
+  vertex(springStart, centerY);
+  for (let i = 0; i <= coils; i++) {
+    let px = map(i, 0, coils, springStart + 10, springEnd - 10);
+    let py = centerY + (i % 2 === 0 ? -coilWidth : coilWidth);
+    vertex(px, py);
+  }
+  vertex(springEnd, centerY);
+  endShape();
+  
+  // Mass block
+  let massW = 50, massH = 50;
+  fill(56, 189, 248, 200);
+  stroke(56, 189, 248);
+  strokeWeight(2);
+  rectMode(CENTER);
+  rect(massX, centerY, massW, massH, 6);
+  fill(255);
+  noStroke();
+  textAlign(CENTER, CENTER);
+  textSize(12);
+  text(m + ' kg', massX, centerY);
+  rectMode(CORNER);
+  
+  // Force arrow
+  if (Math.abs(x) > 5) {
+    let forceDir = x > 0 ? -1 : 1;
+    let forceLen = Math.abs(x) * 0.5;
+    stroke(239, 68, 68);
+    strokeWeight(2);
+    let arrowStart = massX + forceDir * 30;
+    let arrowEnd = massX + forceDir * (30 + forceLen);
+    line(arrowStart, centerY + 35, arrowEnd, centerY + 35);
+    // Arrowhead
+    line(arrowEnd, centerY + 35, arrowEnd - forceDir * 8, centerY + 30);
+    line(arrowEnd, centerY + 35, arrowEnd - forceDir * 8, centerY + 40);
+    noStroke();
+    fill(239, 68, 68);
+    textSize(10);
+    textAlign(CENTER);
+    text('F = -kx', (arrowStart + arrowEnd) / 2, centerY + 50);
+  }
+  
+  // Equilibrium line
+  stroke(74, 222, 128, 60);
+  strokeWeight(1);
+  setLineDash([5, 5]);
+  line(centerX, centerY - 70, centerX, centerY + 70);
+  setLineDash([]);
+  noStroke();
+  fill(74, 222, 128, 150);
+  textSize(9);
+  textAlign(CENTER);
+  text('equilibrium', centerX, centerY - 75);
+  
+  // === RIGHT SIDE: Graphs ===
+  let graphX = width * 0.52;
+  let graphW = width * 0.43;
+  let graphH = (height - 140) / 3;
+  
+  drawGraph(graphX, 30, graphW, graphH, dispHistory, '#38bdf8', 'Displacement (x)', A);
+  drawGraph(graphX, 40 + graphH, graphW, graphH, velHistory, '#4ade80', 'Velocity (v)', A);
+  drawGraph(graphX, 50 + graphH * 2, graphW, graphH, accelHistory, '#fb923c', 'Acceleration (a)', A * 0.5);
+  
+  // Info
+  noStroke();
+  fill(148, 163, 184);
+  textSize(11);
+  textAlign(LEFT);
+  text(`ω = √(k/m) = ${omega.toFixed(2)} rad/s   |   T = ${(2*Math.PI/dampedOmega).toFixed(2)} s   |   f = ${(dampedOmega/(2*Math.PI)).toFixed(2)} Hz`, 10, 20);
+  
+  fill(100, 116, 139);
+  textSize(10);
+  text('Real-world: Car shock absorbers, Pendulum clocks, Vibrating guitar strings', 10, height - 70);
+}
+
+function drawGraph(x, y, w, h, data, color, label, maxVal) {
+  // Background
+  fill(30, 41, 59, 150);
+  noStroke();
+  rect(x, y, w, h, 8);
+  
+  // Grid
+  stroke(51, 65, 85);
+  strokeWeight(0.5);
+  line(x, y + h/2, x + w, y + h/2);
+  
+  // Data line
+  noFill();
+  stroke(color);
+  strokeWeight(1.5);
+  beginShape();
+  for (let i = 0; i < data.length; i++) {
+    let px = x + (i / data.length) * w;
+    let py = y + h/2 - (data[i] / maxVal) * (h/2 - 10);
+    py = constrain(py, y + 5, y + h - 5);
+    vertex(px, py);
+  }
+  endShape();
+  
+  // Label
+  noStroke();
+  fill(color);
+  textSize(10);
+  textAlign(LEFT);
+  text(label, x + 8, y + 14);
+}
+
+function setLineDash(list) {
+  drawingContext.setLineDash(list);
+}
+</script>
+</body>
+</html>

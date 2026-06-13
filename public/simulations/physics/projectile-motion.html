@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Projectile Motion — Interactive Lab</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; user-select: none; }
+
+canvas { display: block; cursor: crosshair; }
+
+#hud { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 16px; pointer-events: none; }
+#hud > * { pointer-events: auto; }
+
+.panel { background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px); border: 1px solid #334155; border-radius: 14px; padding: 14px; }
+.panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 10px; font-weight: 700; }
+
+#controls { width: 240px; }
+.control { margin-bottom: 10px; }
+.control-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.control-label { font-size: 11px; color: #94a3b8; }
+.control-value { font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+input[type="range"] { width: 100%; height: 6px; -webkit-appearance: none; background: #1e293b; border-radius: 3px; outline: none; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; cursor: grab; border: 2px solid; }
+#angle-slider::-webkit-slider-thumb { background: #818cf8; border-color: #6366f1; }
+#velocity-slider::-webkit-slider-thumb { background: #4ade80; border-color: #22c55e; }
+#gravity-slider::-webkit-slider-thumb { background: #fb923c; border-color: #f97316; }
+#mass-slider::-webkit-slider-thumb { background: #f472b6; border-color: #ec4899; }
+
+.btn-row { display: flex; gap: 6px; margin-top: 12px; }
+.btn { flex: 1; padding: 8px 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+.btn-launch { background: linear-gradient(135deg, #0ea5e9, #6366f1); color: white; }
+.btn-launch:hover { transform: scale(1.02); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3); }
+.btn-reset { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+.btn-reset:hover { color: white; border-color: #475569; }
+
+#data-panel { width: 200px; }
+.data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.data-cell { background: #1e293b; border-radius: 8px; padding: 8px 10px; }
+.data-cell .label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+.data-cell .value { font-size: 14px; font-weight: 800; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+.data-cell.range .value { color: #38bdf8; }
+.data-cell.height .value { color: #4ade80; }
+.data-cell.time .value { color: #fbbf24; }
+.data-cell.speed .value { color: #f472b6; }
+.data-cell.ke .value { color: #a78bfa; }
+.data-cell.angle-data .value { color: #818cf8; }
+
+#hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(8px); border: 1px solid #334155; border-radius: 10px; padding: 8px 16px; font-size: 11px; color: #94a3b8; transition: opacity 0.3s; pointer-events: none; }
+#hint strong { color: #38bdf8; }
+#hint.hidden { opacity: 0; }
+
+.mode-toggle { display: flex; gap: 4px; margin-bottom: 10px; }
+.mode-btn { flex: 1; padding: 5px 8px; font-size: 10px; border: 1px solid #334155; border-radius: 6px; background: transparent; color: #64748b; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.mode-btn.active { background: #0ea5e9; border-color: #0ea5e9; color: white; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="hud">
+  <div id="controls" class="panel">
+    <div class="panel-title">⚡ Controls</div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-drag">🖱️ Drag</button>
+      <button class="mode-btn" id="mode-slider">🎛️ Sliders</button>
+    </div>
+    <div id="slider-controls" style="display:none;">
+      <div class="control">
+        <div class="control-header">
+          <span class="control-label">Launch Angle</span>
+          <span class="control-value" style="color:#818cf8;" id="angle-val">45°</span>
+        </div>
+        <input type="range" id="angle-slider" min="5" max="85" value="45" step="1">
+      </div>
+      <div class="control">
+        <div class="control-header">
+          <span class="control-label">Velocity</span>
+          <span class="control-value" style="color:#4ade80;" id="vel-val">50 m/s</span>
+        </div>
+        <input type="range" id="velocity-slider" min="5" max="120" value="50" step="1">
+      </div>
+      <div class="control">
+        <div class="control-header">
+          <span class="control-label">Gravity</span>
+          <span class="control-value" style="color:#fb923c;" id="grav-val">9.8 m/s²</span>
+        </div>
+        <input type="range" id="gravity-slider" min="1" max="30" value="9.8" step="0.1">
+      </div>
+      <div class="control">
+        <div class="control-header">
+          <span class="control-label">Mass</span>
+          <span class="control-value" style="color:#f472b6;" id="mass-val">1.0 kg</span>
+        </div>
+        <input type="range" id="mass-slider" min="0.1" max="10" value="1" step="0.1">
+      </div>
+    </div>
+    <div id="drag-info" style="font-size:11px; color:#94a3b8; line-height:1.5;">
+      <p>🖱️ <strong style="color:#38bdf8">Click & drag</strong> from the orange pad to set angle and power.</p>
+      <p style="margin-top:4px;">📐 Drag direction = angle</p>
+      <p>💪 Drag distance = velocity</p>
+      <p style="margin-top:6px; color:#64748b; font-size:10px;">Or switch to Sliders mode for precise control.</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-launch" id="launch-btn">🚀 Launch</button>
+      <button class="btn btn-reset" id="reset-btn">↺ Reset</button>
+    </div>
+  </div>
+
+  <div id="data-panel" class="panel">
+    <div class="panel-title">📊 Live Data</div>
+    <div class="data-grid">
+      <div class="data-cell angle-data"><div class="label">Angle</div><div class="value" id="d-angle">45°</div></div>
+      <div class="data-cell speed"><div class="label">Speed</div><div class="value" id="d-speed">50 m/s</div></div>
+      <div class="data-cell range"><div class="label">Range</div><div class="value" id="d-range">0 m</div></div>
+      <div class="data-cell height"><div class="label">Max H</div><div class="value" id="d-height">0 m</div></div>
+      <div class="data-cell time"><div class="label">Time</div><div class="value" id="d-time">0.0 s</div></div>
+      <div class="data-cell ke"><div class="label">KE</div><div class="value" id="d-ke">0 J</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="hint">
+  <strong>🖱️ Click & drag</strong> from the orange pad to aim, then release to launch! Or press the <strong>Launch</strong> button.
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let W, H, groundY, launchX, launchY;
+let angle = 45, velocity = 50, gravity = 9.8, mass = 1.0;
+let mode = 'drag';
+let dragging = false, dragStart = null, dragEnd = null;
+let projectile = null;
+let currentTrail = [];
+let launched = false;
+let time = 0;
+let predictions = [];
+let trailHistory = [];
+let hintHidden = false;
+let pxPerMeter = 4;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  groundY = H - 60;
+  launchX = 80;
+  launchY = groundY;
+  pxPerMeter = Math.min(W / 300, H / 150);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Controls
+const modeDragBtn = document.getElementById('mode-drag');
+const modeSliderBtn = document.getElementById('mode-slider');
+const sliderControls = document.getElementById('slider-controls');
+const dragInfo = document.getElementById('drag-info');
+
+modeDragBtn.addEventListener('click', () => { mode = 'drag'; modeDragBtn.classList.add('active'); modeSliderBtn.classList.remove('active'); sliderControls.style.display = 'none'; dragInfo.style.display = 'block'; });
+modeSliderBtn.addEventListener('click', () => { mode = 'slider'; modeSliderBtn.classList.add('active'); modeDragBtn.classList.remove('active'); sliderControls.style.display = 'block'; dragInfo.style.display = 'none'; });
+
+document.getElementById('angle-slider').addEventListener('input', e => { angle = +e.target.value; document.getElementById('angle-val').textContent = angle + '°'; updatePrediction(); });
+document.getElementById('velocity-slider').addEventListener('input', e => { velocity = +e.target.value; document.getElementById('vel-val').textContent = velocity + ' m/s'; updatePrediction(); });
+document.getElementById('gravity-slider').addEventListener('input', e => { gravity = +e.target.value; document.getElementById('grav-val').textContent = gravity + ' m/s²'; updatePrediction(); });
+document.getElementById('mass-slider').addEventListener('input', e => { mass = +e.target.value; document.getElementById('mass-val').textContent = mass.toFixed(1) + ' kg'; });
+
+document.getElementById('launch-btn').addEventListener('click', doLaunch);
+document.getElementById('reset-btn').addEventListener('click', reset);
+
+// Mouse interaction
+canvas.addEventListener('mousedown', e => {
+  if (mode !== 'drag') return;
+  const dist = Math.sqrt((e.clientX - launchX) ** 2 + (e.clientY - launchY) ** 2);
+  if (dist < 80) {
+    dragging = true;
+    dragStart = { x: launchX, y: launchY };
+    dragEnd = { x: e.clientX, y: e.clientY };
+    hideHint();
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  dragEnd = { x: e.clientX, y: e.clientY };
+  const dx = dragEnd.x - dragStart.x;
+  const dy = dragStart.y - dragEnd.y;
+  angle = Math.round(Math.atan2(dy, dx) * 180 / Math.PI);
+  angle = Math.max(5, Math.min(85, angle));
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  velocity = Math.round(Math.min(120, dist * 0.8));
+  velocity = Math.max(5, velocity);
+  updatePrediction();
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (dragging) { dragging = false; if (velocity > 10) doLaunch(); }
+});
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  if (mode !== 'drag') return;
+  const t = e.touches[0];
+  const dist = Math.sqrt((t.clientX - launchX) ** 2 + (t.clientY - launchY) ** 2);
+  if (dist < 100) { dragging = true; dragStart = { x: launchX, y: launchY }; dragEnd = { x: t.clientX, y: t.clientY }; hideHint(); e.preventDefault(); }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  if (!dragging) return;
+  const t = e.touches[0];
+  dragEnd = { x: t.clientX, y: t.clientY };
+  const dx = dragEnd.x - dragStart.x;
+  const dy = dragStart.y - dragEnd.y;
+  angle = Math.round(Math.atan2(dy, dx) * 180 / Math.PI);
+  angle = Math.max(5, Math.min(85, angle));
+  velocity = Math.round(Math.min(120, Math.sqrt(dx * dx + dy * dy) * 0.8));
+  velocity = Math.max(5, velocity);
+  updatePrediction();
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => {
+  if (dragging) { dragging = false; if (velocity > 10) doLaunch(); }
+});
+
+function hideHint() { if (!hintHidden) { document.getElementById('hint').classList.add('hidden'); hintHidden = true; } }
+
+// Physics
+function updatePrediction() {
+  const rad = angle * Math.PI / 180;
+  const R = (velocity * velocity * Math.sin(2 * rad)) / gravity;
+  const Hmax = (velocity * velocity * Math.sin(rad) ** 2) / (2 * gravity);
+  const T = (2 * velocity * Math.sin(rad)) / gravity;
+  document.getElementById('d-angle').textContent = angle + '°';
+  document.getElementById('d-speed').textContent = velocity + ' m/s';
+  document.getElementById('d-range').textContent = R.toFixed(1) + ' m';
+  document.getElementById('d-height').textContent = Hmax.toFixed(1) + ' m';
+  document.getElementById('d-time').textContent = T.toFixed(2) + ' s';
+  document.getElementById('d-ke').textContent = (0.5 * mass * velocity * velocity).toFixed(0) + ' J';
+  predictions = [];
+  const steps = 80;
+  const dt = T / steps;
+  for (let i = 0; i <= steps; i++) {
+    const t = i * dt;
+    predictions.push({ x: velocity * Math.cos(rad) * t, y: velocity * Math.sin(rad) * t - 0.5 * gravity * t * t });
+  }
+}
+
+function doLaunch() {
+  hideHint();
+  const rad = angle * Math.PI / 180;
+  if (currentTrail.length > 2) {
+    const colors = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6'];
+    trailHistory.push({ trail: [...currentTrail], color: colors[trailHistory.length % colors.length] });
+    if (trailHistory.length > 5) trailHistory.shift();
+  }
+  currentTrail = [];
+  projectile = { x: 0, y: 0, vx: velocity * Math.cos(rad), vy: velocity * Math.sin(rad), t: 0, active: true };
+  time = 0;
+  launched = true;
+}
+
+function reset() { launched = false; projectile = null; currentTrail = []; trailHistory = []; time = 0; updatePrediction(); }
+
+// Coordinate conversion
+function toScreen(wx, wy) { return { x: launchX + wx * pxPerMeter, y: groundY - wy * pxPerMeter }; }
+
+// Render
+function drawGrid() {
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 0.5;
+  for (let x = 0; x < 400; x += 50) {
+    const sx = launchX + x * pxPerMeter;
+    if (sx > W) break;
+    ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, groundY); ctx.stroke();
+    ctx.fillStyle = '#334155'; ctx.font = '9px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(x + 'm', sx, groundY + 15);
+  }
+  for (let y = 50; y < 200; y += 50) {
+    const sy = groundY - y * pxPerMeter;
+    if (sy < 0) break;
+    ctx.beginPath(); ctx.moveTo(launchX, sy); ctx.lineTo(W, sy); ctx.stroke();
+    ctx.fillStyle = '#334155'; ctx.font = '9px system-ui'; ctx.textAlign = 'right';
+    ctx.fillText(y + 'm', launchX - 8, sy + 3);
+  }
+}
+
+function drawGround() {
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
+  ctx.fillStyle = '#1e3a2a'; ctx.fillRect(0, groundY, W, H - groundY);
+}
+
+function drawLaunchPad() {
+  const g = ctx.createRadialGradient(launchX, launchY, 0, launchX, launchY, 30);
+  g.addColorStop(0, 'rgba(251,146,60,0.3)'); g.addColorStop(1, 'rgba(251,146,60,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(launchX, launchY, 30, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fb923c'; ctx.beginPath(); ctx.arc(launchX, launchY, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fed7aa'; ctx.beginPath(); ctx.arc(launchX, launchY, 4, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawAimArrow() {
+  if (launched && !dragging) return;
+  const rad = angle * Math.PI / 180;
+  const len = Math.min(velocity * 1.2, 150);
+  const endX = launchX + Math.cos(rad) * len;
+  const endY = launchY - Math.sin(rad) * len;
+  const grd = ctx.createLinearGradient(launchX, launchY, endX, endY);
+  grd.addColorStop(0, '#fb923c'); grd.addColorStop(1, dragging ? '#ef4444' : '#fbbf24');
+  ctx.strokeStyle = grd; ctx.lineWidth = dragging ? 3 : 2;
+  ctx.beginPath(); ctx.moveTo(launchX, launchY); ctx.lineTo(endX, endY); ctx.stroke();
+  // Arrowhead
+  const ha = Math.PI / 6;
+  ctx.fillStyle = dragging ? '#ef4444' : '#fbbf24';
+  ctx.beginPath(); ctx.moveTo(endX, endY);
+  ctx.lineTo(endX - 12 * Math.cos(rad - ha), endY + 12 * Math.sin(rad - ha));
+  ctx.lineTo(endX - 12 * Math.cos(rad + ha), endY + 12 * Math.sin(rad + ha));
+  ctx.closePath(); ctx.fill();
+  // Arc + labels
+  ctx.strokeStyle = 'rgba(251,146,60,0.5)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(launchX, launchY, 35, -rad, 0); ctx.stroke();
+  ctx.fillStyle = '#fb923c'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left';
+  ctx.fillText(angle + '°', launchX + 40, launchY - 8);
+  ctx.fillStyle = '#4ade80'; ctx.font = 'bold 11px system-ui';
+  ctx.fillText(velocity + ' m/s', endX + 8, endY - 8);
+}
+
+function drawPrediction() {
+  if (predictions.length < 2 || (launched && !dragging)) return;
+  ctx.setLineDash([6, 4]); ctx.strokeStyle = 'rgba(56,189,248,0.4)'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  predictions.forEach((pt, i) => { const p = toScreen(pt.x, pt.y); i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
+  ctx.stroke(); ctx.setLineDash([]);
+  // Max height marker
+  const maxH = predictions.reduce((m, p) => p.y > m.y ? p : m, predictions[0]);
+  const mhp = toScreen(maxH.x, maxH.y);
+  ctx.fillStyle = 'rgba(74,222,128,0.4)'; ctx.beginPath(); ctx.arc(mhp.x, mhp.y, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#4ade80'; ctx.font = '9px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(maxH.y.toFixed(1) + 'm', mhp.x, mhp.y - 10);
+}
+
+function drawTrailHistory() {
+  for (const h of trailHistory) {
+    if (h.trail.length < 2) continue;
+    ctx.strokeStyle = h.color + '50'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    h.trail.forEach((pt, i) => { const p = toScreen(pt.x, pt.y); i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+
+function drawProjectile() {
+  if (!launched || !projectile || !projectile.active) return;
+  // Trail
+  if (currentTrail.length > 1) {
+    ctx.lineWidth = 2.5;
+    for (let i = 1; i < currentTrail.length; i++) {
+      ctx.strokeStyle = `rgba(56,189,248,${i / currentTrail.length * 0.8})`;
+      const p1 = toScreen(currentTrail[i - 1].x, currentTrail[i - 1].y);
+      const p2 = toScreen(currentTrail[i].x, currentTrail[i].y);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+  }
+  const sp = toScreen(projectile.x, projectile.y);
+  // Glow
+  const glow = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, 20);
+  glow.addColorStop(0, 'rgba(251,146,60,0.4)'); glow.addColorStop(1, 'rgba(251,146,60,0)');
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sp.x, sp.y, 20, 0, Math.PI * 2); ctx.fill();
+  // Ball
+  ctx.fillStyle = '#fb923c'; ctx.beginPath(); ctx.arc(sp.x, sp.y, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fed7aa'; ctx.beginPath(); ctx.arc(sp.x - 2, sp.y - 2, 3, 0, Math.PI * 2); ctx.fill();
+  // Vectors
+  const vs = 0.8;
+  ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(sp.x + projectile.vx * vs, sp.y - projectile.vy * vs); ctx.stroke();
+  ctx.strokeStyle = '#f87171'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(sp.x, sp.y + gravity * 2); ctx.stroke();
+  // Speed label
+  const spd = Math.sqrt(projectile.vx ** 2 + projectile.vy ** 2);
+  ctx.fillStyle = '#4ade80'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'left';
+  ctx.fillText('v=' + spd.toFixed(1), sp.x + 15, sp.y - 15);
+}
+
+function updatePhysics(dt) {
+  if (!launched || !projectile || !projectile.active) return;
+  projectile.vy -= gravity * dt;
+  projectile.x += projectile.vx * dt;
+  projectile.y += projectile.vy * dt;
+  projectile.t += dt;
+  currentTrail.push({ x: projectile.x, y: projectile.y });
+  // Live data
+  const spd = Math.sqrt(projectile.vx ** 2 + projectile.vy ** 2);
+  document.getElementById('d-time').textContent = projectile.t.toFixed(2) + ' s';
+  document.getElementById('d-ke').textContent = (0.5 * mass * spd * spd).toFixed(0) + ' J';
+  document.getElementById('d-speed').textContent = spd.toFixed(1) + ' m/s';
+  document.getElementById('d-height').textContent = Math.max(...currentTrail.map(p => p.y), 0).toFixed(1) + ' m';
+  document.getElementById('d-range').textContent = projectile.x.toFixed(1) + ' m';
+  if (projectile.y <= 0 && projectile.t > 0.05) { projectile.y = 0; projectile.active = false; currentTrail.push({ x: projectile.x, y: 0 }); }
+}
+
+let lastTime = performance.now();
+function frame(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  updatePhysics(dt);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+  drawGrid(); drawGround(); drawTrailHistory(); drawPrediction(); drawLaunchPad(); drawAimArrow(); drawProjectile();
+  requestAnimationFrame(frame);
+}
+
+updatePrediction();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

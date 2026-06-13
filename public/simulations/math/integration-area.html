@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Integration - Area Under Curve</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#panel { position: absolute; top: 10px; left: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 220px; z-index: 10; }
+#panel h3 { font-size: 13px; margin-bottom: 8px; color: #e2e8f0; }
+.tabs { display: flex; gap: 3px; margin-bottom: 10px; flex-wrap: wrap; }
+.tabs button { padding: 5px 8px; background: #334155; border: none; color: #94a3b8; border-radius: 5px; cursor: pointer; font-size: 9px; }
+.tabs button.active { background: #0ea5e9; color: white; }
+.ctrl { margin-bottom: 10px; }
+.ctrl label { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-bottom: 3px; }
+.ctrl label span { color: #38bdf8; font-weight: bold; }
+input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; background: #334155; border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+#result { margin-top: 10px; padding: 8px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; font-family: monospace; font-size: 10px; }
+#result .approx { color: #4ade80; }
+#result .exact { color: #a78bfa; }
+#result .error { color: #ef4444; }
+.info { font-size: 9px; color: #64748b; margin-top: 8px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h3>∫ Integration Visualizer</h3>
+  <div class="tabs" id="func-tabs">
+    <button class="active" onclick="setFunc('x2')">x²</button>
+    <button onclick="setFunc('sinx')">sin(x)</button>
+    <button onclick="setFunc('ex')">eˣ</button>
+    <button onclick="setFunc('x3')">x³</button>
+    <button onclick="setFunc('sqrt')">√x</button>
+  </div>
+  <div class="tabs" id="method-tabs">
+    <button class="active" onclick="setMethod('riemann')">Riemann</button>
+    <button onclick="setMethod('trapezoid')">Trapezoid</button>
+    <button onclick="setMethod('simpson')">Simpson</button>
+  </div>
+  <div class="ctrl">
+    <label>Rectangles (n) <span id="n-val">10</span></label>
+    <input type="range" id="n-slider" min="2" max="100" value="10">
+  </div>
+  <div class="ctrl">
+    <label>Lower bound (a) <span id="a-val">0.0</span></label>
+    <input type="range" id="a-slider" min="-3" max="3" value="0" step="0.1">
+  </div>
+  <div class="ctrl">
+    <label>Upper bound (b) <span id="b-val">3.0</span></label>
+    <input type="range" id="b-slider" min="-3" max="6" value="3" step="0.1">
+  </div>
+  <div id="result">
+    <div class="approx">Approx: <span id="approx-val">-</span></div>
+    <div class="exact">Exact: <span id="exact-val">-</span></div>
+    <div class="error">Error: <span id="error-val">-</span></div>
+  </div>
+  <div class="info">
+    As n → ∞, Riemann sum → exact integral.<br>
+    Simpson's rule uses parabolic approximation (very accurate with few intervals).
+  </div>
+</div>
+<script>
+let func = 'x2';
+let method = 'riemann';
+let n = 10;
+let a = 0, b = 3;
+
+document.getElementById('n-slider').addEventListener('input', function() { n = parseInt(this.value); document.getElementById('n-val').textContent = n; });
+document.getElementById('a-slider').addEventListener('input', function() { a = parseFloat(this.value); document.getElementById('a-val').textContent = a.toFixed(1); });
+document.getElementById('b-slider').addEventListener('input', function() { b = parseFloat(this.value); document.getElementById('b-val').textContent = b.toFixed(1); });
+
+function setFunc(f) {
+  func = f;
+  document.querySelectorAll('#func-tabs button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function setMethod(m) {
+  method = m;
+  document.querySelectorAll('#method-tabs button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function f(x) {
+  switch(func) {
+    case 'x2': return x * x;
+    case 'sinx': return Math.sin(x);
+    case 'ex': return Math.exp(x * 0.5);
+    case 'x3': return x * x * x * 0.2;
+    case 'sqrt': return x >= 0 ? Math.sqrt(x) : -Math.sqrt(-x);
+  }
+}
+
+function exactIntegral(a, b) {
+  switch(func) {
+    case 'x2': return (b*b*b - a*a*a) / 3;
+    case 'sinx': return -Math.cos(b) + Math.cos(a);
+    case 'ex': return 2 * (Math.exp(b*0.5) - Math.exp(a*0.5));
+    case 'x3': return 0.2 * (b*b*b*b - a*a*a*a) / 4;
+    case 'sqrt': 
+      let fb = b >= 0 ? (2/3)*Math.pow(b, 1.5) : -(2/3)*Math.pow(-b, 1.5);
+      let fa = a >= 0 ? (2/3)*Math.pow(a, 1.5) : -(2/3)*Math.pow(-a, 1.5);
+      return fb - fa;
+  }
+}
+
+function numericalIntegral(a, b, n) {
+  let dx = (b - a) / n;
+  let sum = 0;
+  
+  switch(method) {
+    case 'riemann':
+      for (let i = 0; i < n; i++) {
+        sum += f(a + i * dx) * dx;
+      }
+      break;
+    case 'trapezoid':
+      for (let i = 0; i < n; i++) {
+        sum += (f(a + i * dx) + f(a + (i+1) * dx)) * dx / 2;
+      }
+      break;
+    case 'simpson':
+      if (n % 2 !== 0) n++;
+      dx = (b - a) / n;
+      sum = f(a) + f(b);
+      for (let i = 1; i < n; i++) {
+        sum += (i % 2 === 0 ? 2 : 4) * f(a + i * dx);
+      }
+      sum *= dx / 3;
+      break;
+  }
+  return sum;
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  
+  let graphX = 250;
+  let graphW = width - graphX - 30;
+  let graphH = height - 80;
+  let graphY = 40;
+  
+  // Determine scale
+  let xMin = Math.min(a, -1) - 0.5;
+  let xMax = Math.max(b, 4) + 0.5;
+  let yMin = -2, yMax = 0;
+  
+  // Find y range
+  for (let x = xMin; x <= xMax; x += 0.1) {
+    let y = f(x);
+    yMin = Math.min(yMin, y);
+    yMax = Math.max(yMax, y);
+  }
+  yMin -= 0.5; yMax += 0.5;
+  
+  function toScreenX(x) { return graphX + ((x - xMin) / (xMax - xMin)) * graphW; }
+  function toScreenY(y) { return graphY + graphH - ((y - yMin) / (yMax - yMin)) * graphH; }
+  
+  // Grid
+  stroke(30, 41, 59);
+  strokeWeight(0.5);
+  for (let x = Math.ceil(xMin); x <= Math.floor(xMax); x++) {
+    let sx = toScreenX(x);
+    line(sx, graphY, sx, graphY + graphH);
+    noStroke();
+    fill(71, 85, 105);
+    textSize(9);
+    textAlign(CENTER);
+    text(x, sx, toScreenY(0) + 15);
+    stroke(30, 41, 59);
+    strokeWeight(0.5);
+  }
+  for (let y = Math.ceil(yMin); y <= Math.floor(yMax); y++) {
+    let sy = toScreenY(y);
+    line(graphX, sy, graphX + graphW, sy);
+  }
+  
+  // Axes
+  stroke(100, 116, 139);
+  strokeWeight(1.5);
+  let zeroY = toScreenY(0);
+  let zeroX = toScreenX(0);
+  line(graphX, zeroY, graphX + graphW, zeroY); // X axis
+  if (zeroX > graphX && zeroX < graphX + graphW) {
+    line(zeroX, graphY, zeroX, graphY + graphH); // Y axis
+  }
+  
+  // Draw approximation rectangles/trapezoids
+  let dx = (b - a) / n;
+  
+  for (let i = 0; i < n; i++) {
+    let xi = a + i * dx;
+    let xi1 = a + (i + 1) * dx;
+    let sx = toScreenX(xi);
+    let sx1 = toScreenX(xi1);
+    let rectW = sx1 - sx;
+    
+    if (method === 'riemann') {
+      let fy = f(xi);
+      let sy = toScreenY(fy);
+      let sy0 = toScreenY(0);
+      
+      fill(56, 189, 248, 40);
+      stroke(56, 189, 248, 100);
+      strokeWeight(1);
+      rect(sx, Math.min(sy, sy0), rectW, Math.abs(sy - sy0));
+    } else if (method === 'trapezoid') {
+      let fy1 = f(xi);
+      let fy2 = f(xi1);
+      let sy1 = toScreenY(fy1);
+      let sy2 = toScreenY(fy2);
+      let sy0 = toScreenY(0);
+      
+      fill(74, 222, 128, 40);
+      stroke(74, 222, 128, 100);
+      strokeWeight(1);
+      beginShape();
+      vertex(sx, sy0);
+      vertex(sx, sy1);
+      vertex(sx1, sy2);
+      vertex(sx1, sy0);
+      endShape(CLOSE);
+    } else if (method === 'simpson') {
+      // Simpson: draw parabolic arcs
+      let mid = (xi + xi1) / 2;
+      fill(168, 85, 247, 40);
+      stroke(168, 85, 247, 100);
+      strokeWeight(1);
+      beginShape();
+      vertex(sx, toScreenY(0));
+      for (let t = 0; t <= 1; t += 0.1) {
+        let x = xi + t * dx;
+        vertex(toScreenX(x), toScreenY(f(x)));
+      }
+      vertex(sx1, toScreenY(0));
+      endShape(CLOSE);
+    }
+  }
+  
+  // Draw function curve
+  noFill();
+  stroke(251, 146, 60);
+  strokeWeight(2.5);
+  beginShape();
+  for (let x = xMin; x <= xMax; x += 0.02) {
+    vertex(toScreenX(x), toScreenY(f(x)));
+  }
+  endShape();
+  
+  // Draw bounds
+  stroke(239, 68, 68, 150);
+  strokeWeight(1.5);
+  drawingContext.setLineDash([4, 4]);
+  line(toScreenX(a), graphY, toScreenX(a), graphY + graphH);
+  line(toScreenX(b), graphY, toScreenX(b), graphY + graphH);
+  drawingContext.setLineDash([]);
+  
+  // Bound labels
+  noStroke();
+  fill(239, 68, 68);
+  textSize(10);
+  textAlign(CENTER);
+  text('a=' + a.toFixed(1), toScreenX(a), graphY + graphH + 30);
+  text('b=' + b.toFixed(1), toScreenX(b), graphY + graphH + 30);
+  
+  // Calculate and display results
+  let approx = numericalIntegral(a, b, n);
+  let exact = exactIntegral(a, b);
+  let error = Math.abs(approx - exact);
+  
+  document.getElementById('approx-val').textContent = approx.toFixed(6);
+  document.getElementById('exact-val').textContent = exact.toFixed(6);
+  document.getElementById('error-val').textContent = error.toFixed(6) + ' (' + (error / Math.abs(exact) * 100).toFixed(2) + '%)';
+  
+  // Function label
+  noStroke();
+  fill(251, 146, 60);
+  textSize(12);
+  textAlign(LEFT);
+  let funcLabel = {x2: 'f(x) = x²', sinx: 'f(x) = sin(x)', ex: 'f(x) = e^(x/2)', x3: 'f(x) = x³/5', sqrt: 'f(x) = √x'};
+  text(funcLabel[func], graphX + 10, graphY + 20);
+  
+  // Method label
+  fill(148, 163, 184);
+  textSize(10);
+  text(`Method: ${method.charAt(0).toUpperCase() + method.slice(1)} | n = ${n} | Δx = ${dx.toFixed(3)}`, graphX + 10, graphY + 38);
+}
+</script>
+</body>
+</html>

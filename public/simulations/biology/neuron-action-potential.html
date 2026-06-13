@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Neuron Action Potential</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#panel { position: absolute; top: 10px; left: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 210px; z-index: 10; }
+#panel h3 { font-size: 13px; margin-bottom: 8px; color: #e2e8f0; }
+.btn { display: block; width: 100%; padding: 8px; margin-bottom: 6px; background: #0ea5e9; border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 11px; }
+.btn:hover { background: #0284c7; }
+.ctrl { margin-bottom: 10px; }
+.ctrl label { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-bottom: 3px; }
+.ctrl label span { color: #38bdf8; font-weight: bold; }
+input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; background: #334155; border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+#phase { margin-top: 8px; padding: 8px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; font-size: 10px; }
+#phase .state { color: #4ade80; font-weight: bold; }
+#phase .voltage { color: #38bdf8; font-family: monospace; }
+.info { font-size: 9px; color: #64748b; margin-top: 8px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h3>🧠 Neuron Action Potential</h3>
+  <button class="btn" onclick="stimulate()">⚡ Stimulate Neuron</button>
+  <div class="ctrl">
+    <label>Stimulus Strength <span id="stim-val">15 mV</span></label>
+    <input type="range" id="stim-slider" min="5" max="30" value="15">
+  </div>
+  <div class="ctrl">
+    <label>Temperature Factor <span id="temp-val">1.0x</span></label>
+    <input type="range" id="temp-slider" min="0.5" max="3" value="1" step="0.1">
+  </div>
+  <div id="phase">
+    <div>State: <span class="state" id="state-display">Resting</span></div>
+    <div>Membrane: <span class="voltage" id="voltage-display">-70 mV</span></div>
+    <div>Threshold: <span style="color:#fb923c">-55 mV</span></div>
+  </div>
+  <div class="info">
+    All-or-nothing principle: If stimulus reaches threshold (-55mV), full action potential fires. Sub-threshold = no response.<br><br>
+    Real-world: Nerve signals, pain sensation, muscle contraction, heartbeat regulation.
+  </div>
+</div>
+<script>
+let stimulus = 15;
+let tempFactor = 1.0;
+let voltage = -70; // mV (resting potential)
+let time = 0;
+let state = 'resting'; // resting, depolarizing, repolarizing, hyperpolarizing, refractory
+let stateTimer = 0;
+let voltageHistory = [];
+let naChannel = [];
+let kChannel = [];
+const MAX_HISTORY = 400;
+const RESTING = -70;
+const THRESHOLD = -55;
+const PEAK = 40;
+const HYPER = -90;
+
+// Ion channel states
+for (let i = 0; i < 8; i++) {
+  naChannel.push({ open: false, x: 0.3 + i * 0.05, y: 0.35 });
+  kChannel.push({ open: false, x: 0.3 + i * 0.05, y: 0.65 });
+}
+
+document.getElementById('stim-slider').addEventListener('input', function() { stimulus = parseFloat(this.value); document.getElementById('stim-val').textContent = stimulus + ' mV'; });
+document.getElementById('temp-slider').addEventListener('input', function() { tempFactor = parseFloat(this.value); document.getElementById('temp-val').textContent = tempFactor.toFixed(1) + 'x'; });
+
+function stimulate() {
+  if (state === 'resting') {
+    let stimVoltage = RESTING + stimulus;
+    if (stimVoltage >= THRESHOLD) {
+      state = 'depolarizing';
+      stateTimer = 0;
+    } else {
+      // Sub-threshold - small bump then return
+      state = 'subthreshold';
+      stateTimer = 0;
+    }
+  }
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  for (let i = 0; i < MAX_HISTORY; i++) voltageHistory.push(RESTING);
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  time += 0.016 * tempFactor;
+  stateTimer += 0.016 * tempFactor;
+  
+  // State machine for action potential
+  switch(state) {
+    case 'resting':
+      voltage = RESTING;
+      naChannel.forEach(c => c.open = false);
+      kChannel.forEach(c => c.open = false);
+      break;
+    case 'subthreshold':
+      voltage = RESTING + stimulus * Math.exp(-stateTimer * 5) * Math.sin(stateTimer * 10);
+      if (stateTimer > 0.5) { state = 'resting'; }
+      break;
+    case 'depolarizing':
+      voltage = lerp(RESTING, PEAK, Math.min(stateTimer * 4, 1));
+      naChannel.forEach((c, i) => c.open = stateTimer > i * 0.02);
+      if (voltage >= PEAK - 5) { state = 'repolarizing'; stateTimer = 0; }
+      break;
+    case 'repolarizing':
+      voltage = lerp(PEAK, HYPER, Math.min(stateTimer * 3, 1));
+      naChannel.forEach(c => c.open = false);
+      kChannel.forEach((c, i) => c.open = stateTimer > i * 0.02);
+      if (voltage <= HYPER + 5) { state = 'hyperpolarizing'; stateTimer = 0; }
+      break;
+    case 'hyperpolarizing':
+      voltage = lerp(HYPER, RESTING, Math.min(stateTimer * 2, 1));
+      kChannel.forEach(c => c.open = stateTimer > 0.3 ? false : c.open);
+      if (Math.abs(voltage - RESTING) < 2) { state = 'refractory'; stateTimer = 0; }
+      break;
+    case 'refractory':
+      voltage = RESTING;
+      kChannel.forEach(c => c.open = false);
+      if (stateTimer > 0.5) { state = 'resting'; }
+      break;
+  }
+  
+  voltageHistory.push(voltage);
+  if (voltageHistory.length > MAX_HISTORY) voltageHistory.shift();
+  
+  // Update displays
+  document.getElementById('state-display').textContent = state.charAt(0).toUpperCase() + state.slice(1);
+  document.getElementById('voltage-display').textContent = voltage.toFixed(1) + ' mV';
+  
+  // === Draw Neuron Diagram (top half) ===
+  let neuronY = height * 0.22;
+  let neuronW = width - 280;
+  let neuronX = 240;
+  
+  // Cell membrane (two parallel lines)
+  stroke(148, 163, 184);
+  strokeWeight(3);
+  line(neuronX, neuronY - 30, neuronX + neuronW, neuronY - 30);
+  line(neuronX, neuronY + 30, neuronX + neuronW, neuronY + 30);
+  
+  // Labels
+  noStroke();
+  fill(148, 163, 184);
+  textSize(10);
+  textAlign(CENTER);
+  text('Outside (extracellular)', neuronX + neuronW/2, neuronY - 50);
+  text('Inside (intracellular)', neuronX + neuronW/2, neuronY + 50);
+  
+  // Na+ channels
+  for (let i = 0; i < naChannel.length; i++) {
+    let cx = neuronX + 50 + i * (neuronW - 100) / 8;
+    drawIonChannel(cx, neuronY - 30, naChannel[i].open, 'Na+', '#ef4444');
+  }
+  
+  // K+ channels
+  for (let i = 0; i < kChannel.length; i++) {
+    let cx = neuronX + 80 + i * (neuronW - 100) / 8;
+    drawIonChannel(cx, neuronY + 30, kChannel[i].open, 'K+', '#8b5cf6');
+  }
+  
+  // Ions flowing
+  if (state === 'depolarizing') {
+    for (let i = 0; i < 6; i++) {
+      let cx = neuronX + 50 + i * 80;
+      let iy = neuronY - 30 + sin(time * 8 + i) * 15;
+      fill(239, 68, 68, 200);
+      noStroke();
+      textSize(8);
+      text('Na⁺', cx + 5, iy);
+      // Arrow down
+      stroke(239, 68, 68, 150);
+      strokeWeight(1);
+      line(cx, neuronY - 25, cx, neuronY + 5);
+      noStroke();
+      triangle(cx - 3, neuronY + 2, cx + 3, neuronY + 2, cx, neuronY + 8);
+    }
+  }
+  
+  if (state === 'repolarizing') {
+    for (let i = 0; i < 6; i++) {
+      let cx = neuronX + 80 + i * 80;
+      let iy = neuronY + 30 - sin(time * 8 + i) * 15;
+      fill(139, 92, 246, 200);
+      noStroke();
+      textSize(8);
+      text('K⁺', cx + 5, iy);
+      // Arrow up (going out)
+      stroke(139, 92, 246, 150);
+      strokeWeight(1);
+      line(cx, neuronY + 25, cx, neuronY - 5);
+      noStroke();
+      triangle(cx - 3, neuronY - 2, cx + 3, neuronY - 2, cx, neuronY - 8);
+    }
+  }
+  
+  // === Voltage vs Time Graph (bottom half) ===
+  let graphX = 240;
+  let graphY = height * 0.42;
+  let graphW = width - 280;
+  let graphH = height * 0.5;
+  
+  // Background
+  fill(20, 27, 45);
+  stroke(51, 65, 85);
+  strokeWeight(1);
+  rect(graphX, graphY, graphW, graphH, 8);
+  
+  // Y-axis labels
+  noStroke();
+  fill(100, 116, 139);
+  textSize(9);
+  textAlign(RIGHT);
+  let yLabels = [40, 0, -55, -70, -90];
+  for (let v of yLabels) {
+    let y = graphY + graphH - ((v - (-100)) / 150) * graphH;
+    fill(100, 116, 139);
+    text(v + ' mV', graphX - 5, y + 3);
+    stroke(30, 41, 59);
+    strokeWeight(0.5);
+    line(graphX, y, graphX + graphW, y);
+    noStroke();
+  }
+  
+  // Threshold line
+  let threshY = graphY + graphH - ((THRESHOLD - (-100)) / 150) * graphH;
+  stroke(251, 146, 60, 100);
+  strokeWeight(1);
+  drawingContext.setLineDash([4, 4]);
+  line(graphX, threshY, graphX + graphW, threshY);
+  drawingContext.setLineDash([]);
+  noStroke();
+  fill(251, 146, 60, 150);
+  textSize(8);
+  textAlign(LEFT);
+  text('Threshold', graphX + graphW - 50, threshY - 5);
+  
+  // Plot voltage
+  noFill();
+  stroke(56, 189, 248);
+  strokeWeight(2);
+  beginShape();
+  for (let i = 0; i < voltageHistory.length; i++) {
+    let x = graphX + (i / MAX_HISTORY) * graphW;
+    let y = graphY + graphH - ((voltageHistory[i] - (-100)) / 150) * graphH;
+    vertex(x, y);
+  }
+  endShape();
+  
+  // Phase labels on graph
+  noStroke();
+  fill(148, 163, 184);
+  textSize(10);
+  textAlign(CENTER);
+  text('Time (ms) →', graphX + graphW / 2, graphY + graphH + 20);
+  
+  // Axis label
+  push();
+  translate(graphX - 30, graphY + graphH / 2);
+  rotate(-HALF_PI);
+  fill(148, 163, 184);
+  textSize(10);
+  textAlign(CENTER);
+  text('Membrane Potential (mV)', 0, 0);
+  pop();
+}
+
+function drawIonChannel(x, y, open, label, color) {
+  stroke(color);
+  strokeWeight(2);
+  
+  if (open) {
+    // Open gate (gap)
+    line(x - 8, y - 8, x - 8, y - 3);
+    line(x + 8, y - 8, x + 8, y - 3);
+    line(x - 8, y + 3, x - 8, y + 8);
+    line(x + 8, y + 3, x + 8, y + 8);
+    
+    // Glow
+    noStroke();
+    fill(color + '40');
+    ellipse(x, y, 20, 20);
+  } else {
+    // Closed gate
+    line(x - 8, y - 8, x - 8, y + 8);
+    line(x + 8, y - 8, x + 8, y + 8);
+    line(x - 8, y, x + 8, y);
+  }
+  
+  noStroke();
+  fill(color);
+  textSize(7);
+  textAlign(CENTER);
+  text(label, x, y + (y < height * 0.22 ? -14 : 18));
+}
+</script>
+</body>
+</html>

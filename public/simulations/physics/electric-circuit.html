@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Electric Circuit Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; overflow: hidden; }
+#panel { position: absolute; top: 10px; right: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 14px; width: 200px; z-index: 10; }
+#panel h3 { font-size: 13px; margin-bottom: 10px; color: #e2e8f0; }
+.ctrl { margin-bottom: 10px; }
+.ctrl label { display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-bottom: 3px; }
+.ctrl label span { color: #38bdf8; font-weight: bold; }
+input[type="range"] { width: 100%; height: 4px; -webkit-appearance: none; background: #334155; border-radius: 2px; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+.readings { margin-top: 12px; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; }
+.readings .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11px; }
+.readings .row span:first-child { color: #94a3b8; }
+.readings .row span:last-child { color: #4ade80; font-weight: bold; font-family: monospace; }
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+.tabs button { flex: 1; padding: 5px; background: #334155; border: none; color: #94a3b8; border-radius: 5px; cursor: pointer; font-size: 9px; }
+.tabs button.active { background: #0ea5e9; color: white; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h3>⚡ Circuit Simulator</h3>
+  <div class="tabs">
+    <button class="active" id="btn-series" onclick="setCircuit('series')">Series</button>
+    <button id="btn-parallel" onclick="setCircuit('parallel')">Parallel</button>
+  </div>
+  <div class="ctrl">
+    <label>Voltage (V) <span id="v-val">12 V</span></label>
+    <input type="range" id="v-slider" min="1" max="24" value="12">
+  </div>
+  <div class="ctrl">
+    <label>R₁ <span id="r1-val">100 Ω</span></label>
+    <input type="range" id="r1-slider" min="10" max="1000" value="100">
+  </div>
+  <div class="ctrl">
+    <label>R₂ <span id="r2-val">200 Ω</span></label>
+    <input type="range" id="r2-slider" min="10" max="1000" value="200">
+  </div>
+  <div class="readings">
+    <div class="row"><span>Total R:</span><span id="total-r">300 Ω</span></div>
+    <div class="row"><span>Current:</span><span id="total-i">40.0 mA</span></div>
+    <div class="row"><span>Power:</span><span id="total-p">0.48 W</span></div>
+    <div class="row"><span>V across R₁:</span><span id="v1">4.0 V</span></div>
+    <div class="row"><span>V across R₂:</span><span id="v2">8.0 V</span></div>
+  </div>
+</div>
+<script>
+let voltage = 12, r1 = 100, r2 = 200;
+let circuitType = 'series';
+let electronPos = [];
+let time = 0;
+
+const NUM_ELECTRONS = 20;
+for (let i = 0; i < NUM_ELECTRONS; i++) {
+  electronPos.push(i / NUM_ELECTRONS);
+}
+
+document.getElementById('v-slider').addEventListener('input', function() { voltage = parseFloat(this.value); document.getElementById('v-val').textContent = voltage + ' V'; calculate(); });
+document.getElementById('r1-slider').addEventListener('input', function() { r1 = parseFloat(this.value); document.getElementById('r1-val').textContent = r1 + ' Ω'; calculate(); });
+document.getElementById('r2-slider').addEventListener('input', function() { r2 = parseFloat(this.value); document.getElementById('r2-val').textContent = r2 + ' Ω'; calculate(); });
+
+function setCircuit(type) {
+  circuitType = type;
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + type).classList.add('active');
+  calculate();
+}
+
+function calculate() {
+  let totalR, current, v1, v2;
+  if (circuitType === 'series') {
+    totalR = r1 + r2;
+    current = voltage / totalR;
+    v1 = current * r1;
+    v2 = current * r2;
+  } else {
+    totalR = (r1 * r2) / (r1 + r2);
+    current = voltage / totalR;
+    v1 = voltage; // Same voltage in parallel
+    v2 = voltage;
+  }
+  let power = voltage * current;
+  
+  document.getElementById('total-r').textContent = totalR.toFixed(1) + ' Ω';
+  document.getElementById('total-i').textContent = (current * 1000).toFixed(1) + ' mA';
+  document.getElementById('total-p').textContent = power.toFixed(3) + ' W';
+  document.getElementById('v1').textContent = v1.toFixed(1) + ' V';
+  document.getElementById('v2').textContent = v2.toFixed(1) + ' V';
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  calculate();
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  background(15, 23, 42);
+  time += 0.016;
+  
+  let cx = width * 0.4;
+  let cy = height * 0.5;
+  
+  if (circuitType === 'series') {
+    drawSeriesCircuit(cx, cy);
+  } else {
+    drawParallelCircuit(cx, cy);
+  }
+  
+  // Ohm's Law display
+  noStroke();
+  fill(148, 163, 184);
+  textSize(12);
+  textAlign(LEFT);
+  text("Ohm's Law: V = I × R", 20, height - 40);
+  fill(100, 116, 139);
+  textSize(10);
+  text(circuitType === 'series' ? 'Series: R_total = R₁ + R₂ (current same everywhere)' : 'Parallel: 1/R_total = 1/R₁ + 1/R₂ (voltage same across all)', 20, height - 20);
+}
+
+function drawSeriesCircuit(cx, cy) {
+  let w = 350, h = 200;
+  let left = cx - w/2, right = cx + w/2;
+  let top = cy - h/2, bottom = cy + h/2;
+  
+  // Wires
+  stroke(148, 163, 184);
+  strokeWeight(3);
+  // Top wire
+  line(left + 40, top, right - 40, top);
+  // Bottom wire
+  line(left + 40, bottom, right - 40, bottom);
+  // Left wire
+  line(left, top + 30, left, bottom - 30);
+  // Right wire
+  line(right, top + 30, right, bottom - 30);
+  
+  // Battery (left side)
+  drawBattery(left, cy, voltage);
+  
+  // Resistor 1 (top)
+  drawResistor(cx - 60, top, r1, 'R₁', true);
+  
+  // Resistor 2 (top, after R1)
+  drawResistor(cx + 80, top, r2, 'R₂', true);
+  
+  // Current direction arrows
+  let current = voltage / (r1 + r2);
+  let speed = map(current, 0, 0.5, 0.002, 0.02);
+  
+  // Animate electrons
+  stroke(56, 189, 248);
+  strokeWeight(1);
+  fill(56, 189, 248);
+  
+  for (let i = 0; i < NUM_ELECTRONS; i++) {
+    electronPos[i] = (electronPos[i] + speed) % 1;
+    let pos = getSeriesPos(electronPos[i], left, right, top, bottom);
+    ellipse(pos.x, pos.y, 6, 6);
+  }
+  
+  // Current arrow label
+  noStroke();
+  fill(251, 146, 60);
+  textSize(10);
+  textAlign(CENTER);
+  text('I = ' + (current * 1000).toFixed(1) + ' mA →', cx, top - 20);
+  
+  // Switch
+  drawSwitch(right, top + 30, true);
+}
+
+function drawParallelCircuit(cx, cy) {
+  let w = 300, h = 250;
+  let left = cx - w/2, right = cx + w/2;
+  let top = cy - h/2, bottom = cy + h/2;
+  let mid = cy;
+  
+  // Main wires
+  stroke(148, 163, 184);
+  strokeWeight(3);
+  line(left, top, right, top);
+  line(left, bottom, right, bottom);
+  line(left, top, left, bottom);
+  line(right, top, right, bottom);
+  
+  // Branch wires
+  line(cx - 60, top, cx - 60, top + 40);
+  line(cx - 60, top + 80, cx - 60, bottom - 80);
+  line(cx - 60, bottom - 40, cx - 60, bottom);
+  
+  line(cx + 60, top, cx + 60, top + 40);
+  line(cx + 60, top + 80, cx + 60, bottom - 80);
+  line(cx + 60, bottom - 40, cx + 60, bottom);
+  
+  // Battery (left side)
+  drawBattery(left, mid, voltage);
+  
+  // R1 (left branch, vertical)
+  drawResistorV(cx - 60, top + 60, r1, 'R₁');
+  
+  // R2 (right branch, vertical)
+  drawResistorV(cx + 60, top + 60, r2, 'R₂');
+  
+  // Animate electrons
+  let totalR = (r1 * r2) / (r1 + r2);
+  let current = voltage / totalR;
+  let speed = map(current, 0, 0.5, 0.002, 0.015);
+  
+  fill(56, 189, 248);
+  noStroke();
+  for (let i = 0; i < NUM_ELECTRONS; i++) {
+    electronPos[i] = (electronPos[i] + speed) % 1;
+    let branch = i % 2 === 0 ? -60 : 60;
+    let pos = getParallelPos(electronPos[i], left, right, top, bottom, cx + branch);
+    ellipse(pos.x, pos.y, 6, 6);
+  }
+  
+  // Labels
+  noStroke();
+  fill(251, 146, 60);
+  textSize(10);
+  textAlign(CENTER);
+  let i1 = (voltage / r1 * 1000).toFixed(1);
+  let i2 = (voltage / r2 * 1000).toFixed(1);
+  text('I₁=' + i1 + 'mA', cx - 60, bottom + 20);
+  text('I₂=' + i2 + 'mA', cx + 60, bottom + 20);
+}
+
+function drawBattery(x, y, v) {
+  stroke(74, 222, 128);
+  strokeWeight(3);
+  line(x, y - 20, x, y + 20);
+  strokeWeight(1.5);
+  line(x - 8, y - 20, x + 8, y - 20);
+  strokeWeight(3);
+  line(x - 4, y + 20, x + 4, y + 20);
+  
+  noStroke();
+  fill(74, 222, 128);
+  textSize(9);
+  textAlign(CENTER);
+  text(v + 'V', x - 20, y + 4);
+  text('+', x + 12, y - 18);
+  text('−', x + 12, y + 22);
+}
+
+function drawResistor(x, y, r, label, horizontal) {
+  stroke(251, 146, 60);
+  strokeWeight(2);
+  noFill();
+  
+  // Zigzag resistor symbol
+  let w = 50, h = 10;
+  beginShape();
+  vertex(x - w/2, y);
+  for (let i = 0; i < 6; i++) {
+    vertex(x - w/2 + (i + 0.5) * (w/6), y + (i % 2 === 0 ? -h : h));
+  }
+  vertex(x + w/2, y);
+  endShape();
+  
+  noStroke();
+  fill(251, 146, 60);
+  textSize(9);
+  textAlign(CENTER);
+  text(label + '=' + r + 'Ω', x, y + 20);
+}
+
+function drawResistorV(x, y, r, label) {
+  stroke(251, 146, 60);
+  strokeWeight(2);
+  noFill();
+  
+  let h = 40, w = 8;
+  beginShape();
+  vertex(x, y);
+  for (let i = 0; i < 6; i++) {
+    vertex(x + (i % 2 === 0 ? -w : w), y + (i + 0.5) * (h/6));
+  }
+  vertex(x, y + h);
+  endShape();
+  
+  noStroke();
+  fill(251, 146, 60);
+  textSize(9);
+  textAlign(LEFT);
+  text(label + '=' + r + 'Ω', x + 15, y + 20);
+}
+
+function drawSwitch(x, y, closed) {
+  stroke(148, 163, 184);
+  strokeWeight(2);
+  fill(148, 163, 184);
+  ellipse(x, y, 6, 6);
+  ellipse(x, y + 30, 6, 6);
+  if (closed) {
+    line(x, y, x, y + 30);
+  } else {
+    line(x, y, x + 15, y + 25);
+  }
+}
+
+function getSeriesPos(t, left, right, top, bottom) {
+  let perimeter = 2 * (right - left) + 2 * (bottom - top);
+  let d = t * perimeter;
+  let w = right - left, h = bottom - top;
+  
+  if (d < w) return { x: left + d, y: top };
+  d -= w;
+  if (d < h) return { x: right, y: top + d };
+  d -= h;
+  if (d < w) return { x: right - d, y: bottom };
+  d -= w;
+  return { x: left, y: bottom - d };
+}
+
+function getParallelPos(t, left, right, top, bottom, branchX) {
+  let h = bottom - top;
+  let w = right - left;
+  let total = w + h + w + h;
+  let d = t * total;
+  
+  if (d < w / 2) return { x: left + d, y: top };
+  d -= w / 2;
+  if (d < h) return { x: branchX, y: top + d };
+  d -= h;
+  if (d < w / 2) return { x: branchX - d, y: bottom };
+  d -= w / 2;
+  if (d < w) return { x: left + d, y: bottom };
+  d -= w;
+  return { x: left, y: bottom - (d % h) };
+}
+</script>
+</body>
+</html>
